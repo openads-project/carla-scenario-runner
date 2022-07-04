@@ -40,9 +40,11 @@ from srunner.scenarios.route_scenario import RouteScenario
 from srunner.tools.scenario_parser import ScenarioConfigurationParser
 from srunner.tools.route_parser import RouteParser
 
+sys.path.append("/home/rosuser/scenario_runner/srunner/osi/client")
+sys.path.append("/home/rosuser/scenario_runner/srunner/scenariomanager/actorcontrols")
+
 # Version of scenario_runner
 VERSION = '0.9.13'
-
 
 class ScenarioRunner(object):
 
