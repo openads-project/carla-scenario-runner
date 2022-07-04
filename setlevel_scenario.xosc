@@ -43,16 +43,16 @@
           <PrivateAction>
             <ControllerAction>
               <AssignControllerAction>
-                <!--Controller name="HeroAgent">
+                <Controller name="HeroAgent">
                   <Properties>
                     <Property name="module" value="osi_vehicle_control.py"/>
                   </Properties>
-                </Controller-->
-                <Controller name="HeroAgent">
+                </Controller>
+                <!--Controller name="HeroAgent">
                   <Properties>
                     <Property name="module" value="external_control"/>
                   </Properties>
-                </Controller>
+                </Controller-->
               </AssignControllerAction>
               <OverrideControllerValueAction>
                 <Throttle value="0" active="false"/>
