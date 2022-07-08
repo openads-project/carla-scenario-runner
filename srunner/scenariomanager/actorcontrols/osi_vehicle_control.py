@@ -45,7 +45,7 @@ class OSIVehicleControl(object):
         # super(OSIVehicleControl, self).__init__(actor)
         self._actor = actor
         if args is None or "osiService" not in args:
-            self._host = "0.0.0.0:51425"
+            self._host = "127.0.0.1:51425"
         else:
             self._host = args["osiService"]
         print("Try to connect to OSI-Service at: " + self._host)
