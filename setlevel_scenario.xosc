@@ -35,10 +35,10 @@
           <PrivateAction>
             <TeleportAction>
               <Position>
-                <WorldPosition h="-2" p="0.0" r="0.0" x="-309" y="-200" z="5" />
+                <WorldPosition h="-1.82" p="0.0" r="0.0" x="-309.4" y="-200" z="0" />
               </Position>
             </TeleportAction>
-          </PrivateAction>
+            </PrivateAction>
           <!-- Hero needs a different controller than the default npc_vehicle_controller to be controllable from extern -->
           <PrivateAction>
             <ControllerAction>
