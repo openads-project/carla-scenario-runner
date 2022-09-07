@@ -31,8 +31,6 @@ import json
 import pkg_resources
 
 
-sys.path = ['', '/opt/ros/noetic/lib/python3/dist-packages', '/home/rosuser/carla/PythonAPI/carla/dist/carla-0.9.13-py3.7-linux-x86_64.egg', '/home/rosuser/carla/PythonAPI/carla/agents', '/home/rosuser/carla/PythonAPI/carla', '/home/rosuser/carla/PythonAPI', '/usr/lib/python38.zip', '/usr/lib/python3.8', '/usr/lib/python3.8/lib-dynload', '/home/rosuser/.local/lib/python3.8/site-packages', '/usr/local/lib/python3.8/dist-packages', '/usr/lib/python3/dist-packages']
-
 import carla
 
 from srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration
@@ -44,7 +42,6 @@ from srunner.tools.scenario_parser import ScenarioConfigurationParser
 from srunner.tools.route_parser import RouteParser
 
 sys.path.append("/home/rosuser/scenario_runner/srunner/osi/client")
-sys.path.append("/home/rosuser/scenario_runner/srunner/scenariomanager/actorcontrols")
 
 # Version of scenario_runner
 VERSION = '0.9.13'
@@ -95,9 +92,9 @@ class ScenarioRunner(object):
         self.client = carla.Client(args.host, int(args.port))
         self.client.set_timeout(self.client_timeout)
 
-        #dist = pkg_resources.get_distribution("carla")
-        #if LooseVersion(dist.version) < LooseVersion('0.9.13'):
-        #    raise ImportError("CARLA version 0.9.12 or newer required. CARLA version found: {}".format(dist))
+        dist = pkg_resources.get_distribution("carla")
+        if LooseVersion(dist.version) < LooseVersion('0.9.13'):
+            raise ImportError("CARLA version 0.9.12 or newer required. CARLA version found: {}".format(dist))
 
         # Load agent if requested via command line args
         # If something goes wrong an exception will be thrown by importlib (ok here)
