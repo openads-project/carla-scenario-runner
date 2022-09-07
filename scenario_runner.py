@@ -30,6 +30,7 @@ import time
 import json
 import pkg_resources
 
+
 import carla
 
 from srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration
@@ -40,9 +41,10 @@ from srunner.scenarios.route_scenario import RouteScenario
 from srunner.tools.scenario_parser import ScenarioConfigurationParser
 from srunner.tools.route_parser import RouteParser
 
+sys.path.append("/home/rosuser/scenario_runner/srunner/osi/client")
+
 # Version of scenario_runner
 VERSION = '0.9.13'
-
 
 class ScenarioRunner(object):
 
@@ -91,7 +93,7 @@ class ScenarioRunner(object):
         self.client.set_timeout(self.client_timeout)
 
         dist = pkg_resources.get_distribution("carla")
-        if LooseVersion(dist.version) < LooseVersion('0.9.12'):
+        if LooseVersion(dist.version) < LooseVersion('0.9.13'):
             raise ImportError("CARLA version 0.9.12 or newer required. CARLA version found: {}".format(dist))
 
         # Load agent if requested via command line args
