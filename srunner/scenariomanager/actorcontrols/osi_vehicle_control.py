@@ -98,7 +98,7 @@ class OSIVehicleControl(object):
         try:
             self._time_step = self._client.SendCommand(command)
             #TODO use values from config
-            step_width = 0.03
+            step_width = 0.05
             tolerance = 0.0001
             time_value = self._time_step.value
             if  abs(step_width - time_value) >= tolerance:
