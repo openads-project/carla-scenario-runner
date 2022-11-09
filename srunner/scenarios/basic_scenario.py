@@ -41,6 +41,7 @@ class BasicScenario(object):
 
         self.criteria_list = []  # List of evaluation criteria
         self.scenario = None
+        self.world = world
 
         self.ego_vehicles = ego_vehicles
         self.name = name
@@ -266,7 +267,7 @@ class Scenario(object):
         more_nodes_exist = True
         while more_nodes_exist:
             more_nodes_exist = False
-            for node in node_list:
+            for node in list(node_list):
                 if node.children:
                     node_list.remove(node)
                     more_nodes_exist = True

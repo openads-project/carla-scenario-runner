@@ -346,6 +346,12 @@ class ScenarioRunner(object):
             print("The CARLA server uses the wrong map: {}".format(map_name))
             print("This scenario requires to use map: {}".format(town))
             return False
+        
+        transform = carla.Transform(
+            carla.Location(100, 83, 3),
+            carla.Rotation(0,130,0)) 
+
+        self.world.get_spectator().set_transform(transform)
 
         return True
 
