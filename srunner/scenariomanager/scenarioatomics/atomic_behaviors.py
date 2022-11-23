@@ -790,7 +790,6 @@ class ChangeActorWaypoints(AtomicBehavior):
             carla_transforms = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(
                 osc_point)
             carla_route_elements.append((carla_transforms, routing_option))
-        
         # Obtain final route, considering the routing option
         # At the moment everything besides "shortest" will use the CARLA GlobalPlanner
         grp = GlobalRoutePlanner(CarlaDataProvider.get_world().get_map(), 2.0)
@@ -836,7 +835,6 @@ class ChangeActorWaypoints(AtomicBehavior):
                         route.append(wp_tuple[0].transform)
 
         actor_dict[self._actor.id].update_waypoints(route, start_time=self._start_time)
-        
         super(ChangeActorWaypoints, self).initialise()
 
     def update(self):
