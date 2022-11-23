@@ -54,9 +54,10 @@ class OSIVehicleControl(object):
             self._channel)
         # action id has to be unique within all traffic command messages exchanged with _one_ traffic participant
         # the same id can be reused in another action for a different traffic participant
-        self._counter = 0
         self._time_step = 0.0
         self._end_waypoint = []
+        self._speed_action_id = 0
+        self._traffic_command_id = 0
 
     def reset(self):
         """
@@ -74,7 +75,7 @@ class OSIVehicleControl(object):
             command = self._make_traffic_command()
             action = command.action.add()
             #send AcquireGlobalPositionAction
-            action.acquire_global_position_action.action_header.action_id.value = self._next_id()
+            action.acquire_global_position_action.action_header.action_id.value = self._traffic_command_id
             position, orientation = self.to_osi_transform(self._end_waypoint)
             action.acquire_global_position_action.position.CopyFrom(position)
             action.acquire_global_position_action.orientation.CopyFrom(orientation)
@@ -89,10 +90,6 @@ class OSIVehicleControl(object):
         command.timestamp.CopyFrom(
             self.to_osi_timestamp(GameTime.get_carla_time()))
         return command
-
-    def _next_id(self):
-        self._counter += 1
-        return self._counter
 
     def _try_send_command(self, command: osi_tc.TrafficCommand):
         try:
@@ -119,6 +116,7 @@ class OSIVehicleControl(object):
             target_speed (float): New target speed [m/s].
         """
         print("osi_vehicle_control: called update_target_speed")
+        self._speed_action_id += 1
         self._send_speed_action(target_speed)
 
     def set_init_speed(self):
@@ -126,6 +124,7 @@ class OSIVehicleControl(object):
         Update the actor's initial speed setting
         """
         print("osi_vehicle_control: called set_init_speed")
+        self._speed_action_id += 1
         current_speed = math.sqrt(
             self._actor.get_velocity().x**2 + self._actor.get_velocity().y**2)
         self._send_speed_action(
@@ -135,7 +134,7 @@ class OSIVehicleControl(object):
         #TODO use DYNAMICS_SHAPE_STEP as default to immediately request target speed (when duration == 0 == distance)?
         command = self._make_traffic_command()
         action = command.action.add()
-        action.speed_action.action_header.action_id.value = self._next_id()
+        action.speed_action.action_header.action_id.value = self._speed_action_id
         action.speed_action.absolute_target_speed = target_speed
         action.speed_action.dynamics_shape = dynamics_shape
         action.speed_action.duration = 0
@@ -151,7 +150,7 @@ class OSIVehicleControl(object):
             waypoints (List of carla.Transform): List of new waypoints.
         """
         print("osi_vehicle_control: called update_waypoints")
-
+        self._traffic_command_id += 1
         #save waypoint for decision if target is reached
         if 0 < len(waypoints):
             self._end_waypoint = waypoints[-1]
