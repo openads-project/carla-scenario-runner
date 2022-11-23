@@ -348,8 +348,8 @@ class ScenarioRunner(object):
             return False
         
         transform = carla.Transform(
-            carla.Location(100, 83, 3),
-            carla.Rotation(0,130,0)) 
+            carla.Location(-83, 137, 3),
+            carla.Rotation(0,0,0))
 
         self.world.get_spectator().set_transform(transform)
 
