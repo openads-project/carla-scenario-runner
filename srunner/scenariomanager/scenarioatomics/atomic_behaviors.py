@@ -797,7 +797,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         grp = GlobalRoutePlanner(CarlaDataProvider.get_map(), 2.0)
         route = []
         for i, _ in enumerate(carla_route_elements):
-            if True: #carla_route_elements[i][1] == "shortest":
+            if carla_route_elements[i][1] == "shortest":
                 route.append(carla_route_elements[i][0])
             else:
                 if i == 0:

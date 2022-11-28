@@ -1407,7 +1407,7 @@ class OpenScenarioParser(object):
                 elif private_action.find('AcquirePositionAction') is not None:
                     route_action = private_action.find('AcquirePositionAction')
                     osc_position = route_action.find('Position')
-                    waypoints = [(osc_position, 'fastest')]
+                    waypoints = [(osc_position, 'shortest')]
                     atomic = ChangeActorWaypoints(actor, waypoints=waypoints, name=maneuver_name)
                 else:
                     raise AttributeError("Unknown private routing action")

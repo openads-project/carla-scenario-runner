@@ -234,6 +234,15 @@ class ScenarioRunner(object):
                 self.ego_vehicles[i].set_transform(ego_vehicles[i].transform)
                 CarlaDataProvider.register_actor(self.ego_vehicles[i])
 
+        # set spectator view
+        if(len(ego_vehicles) > 0):
+            transform_ego = ego_vehicles[0].transform
+            transform = carla.Transform(
+                carla.Location(transform_ego.location.x, transform_ego.location.y, transform_ego.location.z + 2),
+                transform_ego.rotation)
+
+            self.world.get_spectator().set_transform(transform)
+
         # sync state
         if CarlaDataProvider.is_sync_mode():
             self.world.tick()
@@ -346,12 +355,6 @@ class ScenarioRunner(object):
             print("The CARLA server uses the wrong map: {}".format(map_name))
             print("This scenario requires to use map: {}".format(town))
             return False
-        
-        transform = carla.Transform(
-            carla.Location(-83, 137, 3),
-            carla.Rotation(0,0,0))
-
-        self.world.get_spectator().set_transform(transform)
 
         return True
 
