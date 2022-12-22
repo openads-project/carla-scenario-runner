@@ -124,7 +124,7 @@ class RosVehicleControl(BasicControl):
         self.node.loginfo("{}: Waypoints changed.".format(self._role_name))
         path = Path()
         path.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
-        path.header.frame_id = "map"
+        path.header.frame_id = "carla_map"
         for wpt in waypoints:
             print(wpt)
             path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
@@ -150,7 +150,7 @@ class RosVehicleControl(BasicControl):
         if self._destination_point:
             destination_point = PointStamped()
             destination_point.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
-            destination_point.header.frame_id = "map"
+            destination_point.header.frame_id = "carla_map"
             destination_point.point = trans.carla_location_to_ros_point(self._destination_point.location) 
             
             self._destination_publisher.publish(destination_point)
