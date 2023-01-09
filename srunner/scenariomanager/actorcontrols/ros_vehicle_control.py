@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Copy from ros-bridge/carla_ros_scenario_runner/src/carla_ros_scenario_runner
+
 # Copyright (c) 2018-2020 Intel Corporation
 #
 # This work is licensed under the terms of the MIT license.
