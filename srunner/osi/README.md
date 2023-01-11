@@ -1,12 +1,19 @@
-Protobuffer interface description files for generating the implementation files should be in the subdirectories.
+# Protobuf information
 
-Install grpc by `pip install grpcio grpcio-tools`
-Generate python files from within this directory with
-E.g.:
+## Installation
+
+Install grpc by `pip install grpcio==1.51.1 grpcio-tools==1.44.0`
+
+## Generating files
+
+Generate python files from within the directory ~/scenario_runner with
+
 ```
-# osi3 is installed in ../../osi3/
-# run from this directory:
- python -m grpc_tools.protoc  -I ./protos/osi3/ -I ./protos/ --python_out ./client/ --grpc_python_out ./client/ ./protos/ScenarioRunner.proto
-# or from Scenario Runner repository root:
- python -m grpc_tools.protoc  -I ./srunner/osi/protos/osi3/ -I ./srunner/osi/protos/ --python_out ./srunner/osi/client/ --grpc_python_out ./srunner/osi/client/ ./srunner/osi/protos/ScenarioRunner.proto
+mkdir -p srunner/osi/client/osi3
+ 
+python3 -m grpc_tools.protoc -I ./srunner/osi/protos/osi3/ -I ./srunner/osi/protos/ --python_out ./srunner/osi/client/ --grpc_python_out ./srunner/osi/client/ ./srunner/osi/protos/ScenarioRunner.proto
+```
+:warning: generating the python-files in srunner/osi/client/osi3 does not yet work with this call:
+```
+python3 -m grpc_tools.protoc -I ./srunner/osi/protos/osi3/ -I ./srunner/osi/protos/ --python_out=./srunner/osi/client/osi3 ./srunner/osi/protos/osi3/*.proto
 ```
