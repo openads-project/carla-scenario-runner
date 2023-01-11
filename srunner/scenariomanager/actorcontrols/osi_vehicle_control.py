@@ -24,8 +24,8 @@ from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenario_manager import GameTime
 
 import grpc
-from osi3.osi_common_pb2 import Identifier as OSIIdentifier, Vector2d as OSIVec2d, Vector3d as OSIVec3d, Orientation3d as OSIOrientation3d, Timestamp as OSITimestamp
-import osi3.osi_trafficcommand_pb2 as osi_tc
+from srunner.osi.client.osi3.osi_common_pb2 import Identifier as OSIIdentifier, Vector2d as OSIVec2d, Vector3d as OSIVec3d, Orientation3d as OSIOrientation3d, Timestamp as OSITimestamp
+import srunner.osi.client.osi3.osi_trafficcommand_pb2 as osi_tc
 import srunner.osi.client.ScenarioRunner_pb2
 import srunner.osi.client.ScenarioRunner_pb2_grpc
 
