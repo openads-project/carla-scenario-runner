@@ -203,12 +203,13 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
                 self.logger.warning(" Wrong map in use. Forcing reload of CARLA world")
                 self.client.load_world(self.town)
                 world = self.client.get_world()
-
-            CarlaDataProvider.set_world(world)
+            
             if CarlaDataProvider.is_sync_mode():
                 world.tick()
             else:
                 world.wait_for_tick()
+
+            CarlaDataProvider.set_world(world)
         else:
             CarlaDataProvider.set_world(world)
 

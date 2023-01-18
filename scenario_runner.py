@@ -388,7 +388,7 @@ class ScenarioRunner(object):
         print("Preparing scenario: " + config.name)
         try:
             self._prepare_ego_vehicles(config.ego_vehicles)
-            if self._args.openscenario:
+            if self._args.openscenarios:
                 scenario = OpenScenario(world=self.world,
                                         ego_vehicles=self.ego_vehicles,
                                         config=config,
@@ -414,8 +414,9 @@ class ScenarioRunner(object):
 
         try:
             if self._args.record:
-                recorder_name = "{}/{}/{}.log".format(
-                    os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
+                # recorder_name = "{}/{}/{}.log".format(
+                #     os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
+                recorder_name = "{}/{}.log".format(self._args.record, config.name)
                 self.client.start_recorder(recorder_name, True)
 
             # Load scenario and run it
@@ -487,26 +488,26 @@ class ScenarioRunner(object):
                 self._cleanup()
         return result
 
-    def _run_openscenario(self):
+    def _run_openscenarios(self):
         """
         Run a scenario based on OpenSCENARIO
         """
+        for openscenario in self._args.openscenarios:
+            # Load the scenario configurations provided in the config file
+            if not os.path.isfile(openscenario):
+                print("File does not exist")
+                self._cleanup()
+                return False
 
-        # Load the scenario configurations provided in the config file
-        if not os.path.isfile(self._args.openscenario):
-            print("File does not exist")
+            openscenario_params = {}
+            if self._args.openscenarioparams is not None:
+                for entry in self._args.openscenarioparams.split(','):
+                    [key, val] = [m.strip() for m in entry.split(':')]
+                    openscenario_params[key] = val
+            config = OpenScenarioConfiguration(openscenario, self.client, openscenario_params)
+
+            result = self._load_and_run_scenario(config)
             self._cleanup()
-            return False
-
-        openscenario_params = {}
-        if self._args.openscenarioparams is not None:
-            for entry in self._args.openscenarioparams.split(','):
-                [key, val] = [m.strip() for m in entry.split(':')]
-                openscenario_params[key] = val
-        config = OpenScenarioConfiguration(self._args.openscenario, self.client, openscenario_params)
-
-        result = self._load_and_run_scenario(config)
-        self._cleanup()
         return result
 
     def run(self):
@@ -514,8 +515,8 @@ class ScenarioRunner(object):
         Run all scenarios according to provided commandline args
         """
         result = True
-        if self._args.openscenario:
-            result = self._run_openscenario()
+        if self._args.openscenarios:
+            result = self._run_openscenarios()
         elif self._args.route:
             result = self._run_route()
         else:
@@ -553,6 +554,7 @@ def main():
     parser.add_argument(
         '--scenario', help='Name of the scenario to be executed. Use the preposition \'group:\' to run all scenarios of one class, e.g. ControlLoss or FollowLeadingVehicle')
     parser.add_argument('--openscenario', help='Provide an OpenSCENARIO definition')
+    parser.add_argument('--openscenarioDirectory', help='Provide a folder with OpenSCENARIO definition(s)')
     parser.add_argument('--openscenarioparams', help='Overwrited for OpenSCENARIO ParameterDeclaration')
     parser.add_argument(
         '--route', help='Run a route as a scenario (input: (route_file,scenario_file,[route id]))', nargs='+', type=str)
@@ -587,7 +589,7 @@ def main():
         print(*ScenarioConfigurationParser.get_list_of_scenarios(arguments.configFile), sep='\n')
         return 1
 
-    if not arguments.scenario and not arguments.openscenario and not arguments.route:
+    if not arguments.scenario and not arguments.openscenario and not arguments.openscenarioDirectory and not arguments.route:
         print("Please specify either a scenario or use the route mode\n\n")
         parser.print_help(sys.stdout)
         return 1
@@ -611,6 +613,26 @@ def main():
     if arguments.agent:
         arguments.sync = True
 
+    if arguments.openscenario:
+        arguments.openscenarios = [arguments.openscenario]
+
+    if arguments.openscenarioDirectory:
+        # if arguments.openscenario:
+        #     print("WARN: Ignoring --openscenario when --openscenarioDirectory is specified")
+        arguments.openscenarios = []
+        directory = os.fsencode(arguments.openscenarioDirectory)
+    
+        for file in os.listdir(directory):
+            filename = os.fsdecode(file)
+            if filename.endswith(".xosc"): 
+                arguments.openscenarios.append(os.path.join(arguments.openscenarioDirectory, filename))
+        print(arguments.openscenarios)
+
+        if not arguments.openscenarios:
+            print("No openscenario-files in directory:")
+            print(arguments.openscenarioDirectory)
+            return 1
+    
     scenario_runner = None
     result = True
     try:
