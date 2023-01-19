@@ -44,7 +44,7 @@ from srunner.tools.route_parser import RouteParser
 sys.path.append("/home/lutix/scenario_runner/srunner/osi/client")
 
 # Version of scenario_runner
-VERSION = '0.9.13'
+VERSION = '0.9.14'
 
 class ScenarioRunner(object):
 
@@ -93,8 +93,8 @@ class ScenarioRunner(object):
         self.client.set_timeout(self.client_timeout)
 
         dist = pkg_resources.get_distribution("carla")
-        if LooseVersion(dist.version) < LooseVersion('0.9.13'):
-            raise ImportError("CARLA version 0.9.12 or newer required. CARLA version found: {}".format(dist))
+        if LooseVersion(dist.version) < LooseVersion('0.9.14'):
+            raise ImportError("CARLA version 0.9.14 or newer required. CARLA version found: {}".format(dist))
 
         # Load agent if requested via command line args
         # If something goes wrong an exception will be thrown by importlib (ok here)
