@@ -271,13 +271,15 @@ class ScenarioRunner(object):
             filename = config_name + current_time + ".txt"
 
         if not self.manager.analyze_scenario(self._args.output, filename, junit_filename, json_filename):
-            print("All scenario tests were passed successfully!")
+            print("Scenario test was passed successfully!")
+            return True
         else:
-            print("Not all scenario tests were successful")
+            print("Scenario test was not successful")
             if not (self._args.output or filename or junit_filename):
                 print("Please run with --output for further information")
+            return False
 
-    def _record_criteria(self, criteria, name):
+    def _record_criteria(self, criteria, name, success):
         """
         Filter the JSON serializable attributes of the criterias and
         dumps them into a file. This will be used by the metrics manager,
@@ -309,12 +311,37 @@ class ScenarioRunner(object):
         with open(file_name, 'w', encoding='utf-8') as fp:
             json.dump(criteria_dict, fp, sort_keys=False, indent=4)
 
+        # Add final evaluation from scenario to summary 
+        if self._args.openscenarios and len(self._args.openscenarios) > 1:
+            current_time = str(self._start_wall_time.strftime('%Y-%m-%d-%H-%M-%S')) 
+            file_name = name.rsplit("/",1)[0] + "/OpenScenarioSummary_" + current_time + ".json"
+            data = {}
+            with open(file_name, 'a+', encoding='utf-8') as fp:
+                if fp.tell() != 0:
+                    fp.seek(0)
+                    data = json.loads(fp.read())
+
+            with open(file_name, 'w', encoding='utf-8') as fp:
+                data.update({name.rsplit("/",1)[1].split(".")[0]: "SUCCESS" if success else "FAILURE"})
+                json.dump(data, fp, sort_keys=False, indent=4)
+
     def _load_and_wait_for_world(self, town, ego_vehicles=None):
         """
         Load a new CARLA world and provide data to CarlaDataProvider
         """
 
         if self._args.reloadWorld:
+            if town.split(".")[-1] == "xodr":
+                if os.path.exists(town):
+                    with open(town, encoding='utf-8') as xodr_file:
+                        try:
+                            data = xodr_file.read()
+                        except OSError:
+                            print('file could not be readed.')
+                            sys.exit()
+                print(town)
+                self.world = self.client.generate_opendrive_world(data)
+            else:
             self.world = self.client.load_world(town)
         else:
             # if the world should not be reloaded, wait at least until all ego vehicles are ready
@@ -424,13 +451,13 @@ class ScenarioRunner(object):
             self.manager.run_scenario()
 
             # Provide outputs if required
-            self._analyze_scenario(config)
+            success = self._analyze_scenario(config)
 
             # Remove all actors, stop the recorder and save all criterias (if needed)
             scenario.remove_all_actors()
             if self._args.record:
                 self.client.stop_recorder()
-                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name)
+                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name, success)
 
             result = True
 

@@ -64,7 +64,7 @@ class MetricsManager(object):
 
         # Get the log information.
         self._client = carla.Client(self._args.host, int(self._args.port))
-        recorder_file = "{}/{}".format(os.getenv('SCENARIO_RUNNER_ROOT', "./"), log)
+        recorder_file = log
 
         # Check that the file is correct
         if recorder_file[-4:] != '.log':
