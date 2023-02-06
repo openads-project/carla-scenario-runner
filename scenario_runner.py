@@ -342,7 +342,7 @@ class ScenarioRunner(object):
                 print(town)
                 self.world = self.client.generate_opendrive_world(data)
             else:
-            self.world = self.client.load_world(town)
+                self.world = self.client.load_world(town)
         else:
             # if the world should not be reloaded, wait at least until all ego vehicles are ready
             ego_vehicle_found = False
@@ -653,7 +653,6 @@ def main():
             filename = os.fsdecode(file)
             if filename.endswith(".xosc"): 
                 arguments.openscenarios.append(os.path.join(arguments.openscenarioDirectory, filename))
-        print(arguments.openscenarios)
 
         if not arguments.openscenarios:
             print("No openscenario-files in directory:")

@@ -133,12 +133,12 @@ class World(object):
         self.imu_sensor = None
         self.radar_sensor = None
         self.camera_manager = None
-        self.restart()
+        self.restart(args)
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.recording_start = 0
 
-    def restart(self):
+    def restart(self,args):
 
         if self.restarted:
             return
@@ -153,13 +153,19 @@ class World(object):
 
         # Get the ego vehicle
         while self.player is None:
-            print("Waiting for the ego vehicle...")
+            print("Waiting for the ego vehicle: {} ...".format(args.rolename))
             time.sleep(1)
             possible_vehicles = self.world.get_actors().filter('vehicle.*')
             for vehicle in possible_vehicles:
-                if vehicle.attributes['role_name'] == 'ego_vehicle':
+                if vehicle.attributes['role_name'] == args.rolename:
                     print("Ego vehicle found")
                     self.player = vehicle
+                    transform_ego = vehicle.get_transform()
+                    transform = carla.Transform(
+                        carla.Location(transform_ego.location.x, transform_ego.location.y, transform_ego.location.z + 2),
+                        transform_ego.rotation)
+
+                    self.world.get_spectator().set_transform(transform)
                     break
         
         self.player_name = self.player.type_id
@@ -397,12 +403,20 @@ class HUD(object):
         self._show_info = True
         self._info_text = []
         self._server_clock = pygame.time.Clock()
+        self.rt_factor = 1
+        self.simulation_time_old = 0
+        self.time_old = 0
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
         self.server_fps = self._server_clock.get_fps()
         self.frame = timestamp.frame
         self.simulation_time = timestamp.elapsed_seconds
+        time_actual = time.time()
+        if time_actual - self.time_old > 1:
+            self.rt_factor = (self.simulation_time - self.simulation_time_old)/(time_actual - self.time_old)
+            self.simulation_time_old = self.simulation_time
+            self.time_old = time_actual
 
     def tick(self, world, clock):
         self._notifications.tick(world, clock)
@@ -428,7 +442,7 @@ class HUD(object):
             'Vehicle: % 20s' % get_actor_display_name(world.player, truncate=20),
             'Map:     % 20s' % world.map.name.split('/')[-1],
             'Simulation time: % 12s' % datetime.timedelta(seconds=int(self.simulation_time)),
-            '',
+            'RT-Factor:     % 2.2f' % self.rt_factor,
             'Speed:   % 15.0f km/h' % (3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)),
             u'Compass:% 17.0f\N{DEGREE SIGN} % 2s' % (compass, heading),
             'Accelero: (%5.1f,%5.1f,%5.1f)' % (world.imu_sensor.accelerometer),
@@ -967,8 +981,8 @@ def main():
     argparser.add_argument(
         '--rolename',
         metavar='NAME',
-        default='hero',
-        help='role name of ego vehicle to control (default: "hero")')
+        default='ego_vehicle',
+        help='role name of ego vehicle to control (default: "ego_vehicle")')
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
