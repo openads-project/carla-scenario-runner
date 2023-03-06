@@ -441,9 +441,8 @@ class ScenarioRunner(object):
 
         try:
             if self._args.record:
-                # recorder_name = "{}/{}/{}.log".format(
-                #     os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
-                recorder_name = "{}/{}.log".format(self._args.record, config.name)
+                recorder_name = "{}/{}/{}.log".format(
+                    os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
                 self.client.start_recorder(recorder_name, True)
 
             # Load scenario and run it

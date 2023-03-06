@@ -209,6 +209,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
             else:
                 world.wait_for_tick()
 
+            # to enable multiple scenarios
             CarlaDataProvider.set_world(world)
         else:
             CarlaDataProvider.set_world(world)
