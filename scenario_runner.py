@@ -271,13 +271,15 @@ class ScenarioRunner(object):
             filename = config_name + current_time + ".txt"
 
         if not self.manager.analyze_scenario(self._args.output, filename, junit_filename, json_filename):
-            print("All scenario tests were passed successfully!")
+            print("Scenario test was passed successfully!")
+            return True
         else:
-            print("Not all scenario tests were successful")
+            print("Scenario test was not successful")
             if not (self._args.output or filename or junit_filename):
                 print("Please run with --output for further information")
+            return False
 
-    def _record_criteria(self, criteria, name):
+    def _record_criteria(self, criteria, name, success):
         """
         Filter the JSON serializable attributes of the criterias and
         dumps them into a file. This will be used by the metrics manager,
@@ -309,13 +311,38 @@ class ScenarioRunner(object):
         with open(file_name, 'w', encoding='utf-8') as fp:
             json.dump(criteria_dict, fp, sort_keys=False, indent=4)
 
+        # Add final evaluation from scenario to summary 
+        if self._args.openscenarios and len(self._args.openscenarios) > 1:
+            current_time = str(self._start_wall_time.strftime('%Y-%m-%d-%H-%M-%S')) 
+            file_name = name.rsplit("/",1)[0] + "/OpenScenarioSummary_" + current_time + ".json"
+            data = {}
+            with open(file_name, 'a+', encoding='utf-8') as fp:
+                if fp.tell() != 0:
+                    fp.seek(0)
+                    data = json.loads(fp.read())
+
+            with open(file_name, 'w', encoding='utf-8') as fp:
+                data.update({name.rsplit("/",1)[1].split(".")[0]: "SUCCESS" if success else "FAILURE"})
+                json.dump(data, fp, sort_keys=False, indent=4)
+
     def _load_and_wait_for_world(self, town, ego_vehicles=None):
         """
         Load a new CARLA world and provide data to CarlaDataProvider
         """
 
         if self._args.reloadWorld:
-            self.world = self.client.load_world(town)
+            if town.split(".")[-1] == "xodr":
+                if os.path.exists(town):
+                    with open(town, encoding='utf-8') as xodr_file:
+                        try:
+                            data = xodr_file.read()
+                        except OSError:
+                            print('file could not be readed.')
+                            sys.exit()
+                print(town)
+                self.world = self.client.generate_opendrive_world(data)
+            else:
+                self.world = self.client.load_world(town)
         else:
             # if the world should not be reloaded, wait at least until all ego vehicles are ready
             ego_vehicle_found = False
@@ -388,7 +415,7 @@ class ScenarioRunner(object):
         print("Preparing scenario: " + config.name)
         try:
             self._prepare_ego_vehicles(config.ego_vehicles)
-            if self._args.openscenario:
+            if self._args.openscenarios:
                 scenario = OpenScenario(world=self.world,
                                         ego_vehicles=self.ego_vehicles,
                                         config=config,
@@ -423,13 +450,13 @@ class ScenarioRunner(object):
             self.manager.run_scenario()
 
             # Provide outputs if required
-            self._analyze_scenario(config)
+            success = self._analyze_scenario(config)
 
             # Remove all actors, stop the recorder and save all criterias (if needed)
             scenario.remove_all_actors()
             if self._args.record:
                 self.client.stop_recorder()
-                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name)
+                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name, success)
 
             result = True
 
@@ -487,26 +514,26 @@ class ScenarioRunner(object):
                 self._cleanup()
         return result
 
-    def _run_openscenario(self):
+    def _run_openscenarios(self):
         """
         Run a scenario based on OpenSCENARIO
         """
+        for openscenario in self._args.openscenarios:
+            # Load the scenario configurations provided in the config file
+            if not os.path.isfile(openscenario):
+                print("File does not exist")
+                self._cleanup()
+                return False
 
-        # Load the scenario configurations provided in the config file
-        if not os.path.isfile(self._args.openscenario):
-            print("File does not exist")
+            openscenario_params = {}
+            if self._args.openscenarioparams is not None:
+                for entry in self._args.openscenarioparams.split(','):
+                    [key, val] = [m.strip() for m in entry.split(':')]
+                    openscenario_params[key] = val
+            config = OpenScenarioConfiguration(openscenario, self.client, openscenario_params)
+
+            result = self._load_and_run_scenario(config)
             self._cleanup()
-            return False
-
-        openscenario_params = {}
-        if self._args.openscenarioparams is not None:
-            for entry in self._args.openscenarioparams.split(','):
-                [key, val] = [m.strip() for m in entry.split(':')]
-                openscenario_params[key] = val
-        config = OpenScenarioConfiguration(self._args.openscenario, self.client, openscenario_params)
-
-        result = self._load_and_run_scenario(config)
-        self._cleanup()
         return result
 
     def run(self):
@@ -514,8 +541,8 @@ class ScenarioRunner(object):
         Run all scenarios according to provided commandline args
         """
         result = True
-        if self._args.openscenario:
-            result = self._run_openscenario()
+        if self._args.openscenarios:
+            result = self._run_openscenarios()
         elif self._args.route:
             result = self._run_route()
         else:
@@ -553,6 +580,7 @@ def main():
     parser.add_argument(
         '--scenario', help='Name of the scenario to be executed. Use the preposition \'group:\' to run all scenarios of one class, e.g. ControlLoss or FollowLeadingVehicle')
     parser.add_argument('--openscenario', help='Provide an OpenSCENARIO definition')
+    parser.add_argument('--openscenarioDirectory', help='Provide a folder with OpenSCENARIO definition(s)')
     parser.add_argument('--openscenarioparams', help='Overwrited for OpenSCENARIO ParameterDeclaration')
     parser.add_argument(
         '--route', help='Run a route as a scenario (input: (route_file,scenario_file,[route id]))', nargs='+', type=str)
@@ -587,7 +615,7 @@ def main():
         print(*ScenarioConfigurationParser.get_list_of_scenarios(arguments.configFile), sep='\n')
         return 1
 
-    if not arguments.scenario and not arguments.openscenario and not arguments.route:
+    if not arguments.scenario and not arguments.openscenario and not arguments.openscenarioDirectory and not arguments.route:
         print("Please specify either a scenario or use the route mode\n\n")
         parser.print_help(sys.stdout)
         return 1
@@ -611,6 +639,25 @@ def main():
     if arguments.agent:
         arguments.sync = True
 
+    if arguments.openscenario:
+        arguments.openscenarios = [arguments.openscenario]
+
+    if arguments.openscenarioDirectory:
+        # if arguments.openscenario:
+        #     print("WARN: Ignoring --openscenario when --openscenarioDirectory is specified")
+        arguments.openscenarios = []
+        directory = os.fsencode(arguments.openscenarioDirectory)
+    
+        for file in os.listdir(directory):
+            filename = os.fsdecode(file)
+            if filename.endswith(".xosc"): 
+                arguments.openscenarios.append(os.path.join(arguments.openscenarioDirectory, filename))
+
+        if not arguments.openscenarios:
+            print("No openscenario-files in directory:")
+            print(arguments.openscenarioDirectory)
+            return 1
+    
     scenario_runner = None
     result = True
     try:
