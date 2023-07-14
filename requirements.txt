@@ -1,6 +1,6 @@
 py-trees==0.8.3                 # 2.1.6 not compatible
 networkx==2.2                   # 3.0 seems to be compatible
-Shapely==1.7.1                  # 2.0.0 seems to be compatible
+Shapely==2.0.0                  # 2.0.0 seems to be compatible
 psutil==5.5.1                   # 5.9.4 seems to be compatible
 xmlschema==1.0.18               # 2.1.1 seems to be compatible
 ephem==4.1.4
