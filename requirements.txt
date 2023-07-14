@@ -5,7 +5,7 @@ psutil==5.5.1                   # 5.9.4 seems to be compatible
 xmlschema==1.0.18               # 2.1.1 seems to be compatible
 ephem==4.1.4
 tabulate==0.9.0
-opencv-python==4.3.0.38         # 4.7.0.68 seems to be compatible
+opencv-python==4.8.0.74         # 4.8.0.68 seems to be compatible
 matplotlib==3.5
 numpy==1.23.5                   # 1.23.5 seems to be compatible
 six==1.16.0
