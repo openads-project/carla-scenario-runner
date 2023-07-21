@@ -237,7 +237,7 @@ class Scenario(object):
             # Create py_tree for test criteria
             self.criteria_tree = py_trees.composites.Parallel(
                 name="Test Criteria",
-                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE
+                policy=py_trees.common.ParallelPolicy.SuccessOnOne
             )
             self.criteria_tree.add_children(self.test_criteria)
             self.criteria_tree.setup(timeout=1)
@@ -248,7 +248,7 @@ class Scenario(object):
         self.timeout_node = TimeOut(self.timeout, name="TimeOut")
 
         # Create overall py_tree
-        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SuccessOnOne)
         if behavior is not None:
             self.scenario_tree.add_child(self.behavior)
         self.scenario_tree.add_child(self.timeout_node)

@@ -132,7 +132,7 @@ class SignalizedJunctionLeftTurn(BasicScenario):
         where, a flow of actors coming straight is present.
         """
 
-        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne)
         root.add_child(WaitEndIntersection(self.ego_vehicles[0]))
         root.add_child(ActorFlow(
             self._source_wp, self._sink_wp, self._source_dist_interval, 2, self._opposite_speed))

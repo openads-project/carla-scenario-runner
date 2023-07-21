@@ -95,7 +95,7 @@ class StationaryObjectCrossing(BasicScenario):
 
         # non leaf nodes
         root = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne)
         scenario_sequence = py_trees.composites.Sequence()
 
         # building tree
@@ -266,7 +266,7 @@ class DynamicObjectCrossing(BasicScenario):
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne, name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], collision_time_trigger, collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(

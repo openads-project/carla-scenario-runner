@@ -167,7 +167,7 @@ class OppositeVehicleRunningRedLight(BasicScenario):
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne, name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._sync_time, self._collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(
@@ -178,7 +178,7 @@ class OppositeVehicleRunningRedLight(BasicScenario):
             self.other_actors[0], target_location=self._sink_wp.transform.location,
             target_speed=self._adversary_speed, opt_dict={'ignore_vehicles': True}, name="AdversaryCrossing"))
 
-        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne)
         main_behavior.add_child(TrafficLightFreezer(self._tl_dict))
         main_behavior.add_child(sequence)
 
