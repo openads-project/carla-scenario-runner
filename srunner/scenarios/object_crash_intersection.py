@@ -170,7 +170,7 @@ class BaseVehicleTurning(BasicScenario):
 
         # Adversary trigger behavior
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SuccessOnOne, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], collision_time_trigger, collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(

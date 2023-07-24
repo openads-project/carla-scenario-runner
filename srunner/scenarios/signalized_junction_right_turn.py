@@ -132,7 +132,7 @@ class SignalizedJunctionRightTurn(BasicScenario):
         Hero vehicle is turning right in an urban area, at a signalized intersection,
         while other actor coming straight from the left. The ego has to avoid colliding with it
         """
-        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne)
+        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
         root.add_child(WaitEndIntersection(self.ego_vehicles[0]))
         root.add_child(ActorFlow(
             self._source_wp, self._sink_wp, self._source_dist_interval, 2, self._opposite_speed))

@@ -124,9 +124,9 @@ class NoSignalJunctionCrossing(BasicScenario):
         root = py_trees.composites.Sequence()
         scenario_sequence = py_trees.composites.Sequence()
         sync_arrival_parallel = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SuccessOnOne)
+            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
         keep_velocity_other_parallel = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SuccessOnOne)
+            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
 
         # Building tree
         root.add_child(scenario_sequence)
