@@ -310,6 +310,7 @@ class CollisionTest(Criterion):
 
         world = self.actor.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.collision')
+
         self._collision_sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self.actor)
         self._collision_sensor.listen(lambda event: self._count_collisions(weakref.ref(self), event))
 
@@ -529,6 +530,7 @@ class KeepLaneTest(Criterion):
 
         world = self.actor.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.lane_invasion')
+
         self._lane_sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self.actor)
         self._lane_sensor.listen(lambda event: self._count_lane_invasion(weakref.ref(self), event))
 
