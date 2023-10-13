@@ -82,6 +82,6 @@ WORKDIR ${WORKSPACE}
 
 # Set entrypoint
 COPY ./docker/entrypoint.sh /
-#ENTRYPOINT [ "/entrypoint.sh" ]
+ENTRYPOINT [ "/entrypoint.sh" ]
 
 CMD [ "python3", "/opt/carla/PythonAPI/util/test_connection.py", "--host", "carla-server" ]
