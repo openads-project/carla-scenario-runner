@@ -31,6 +31,10 @@ SHELL ["/bin/bash", "-c"]
 
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_API_PATH=/opt/carla/scenario_runner
+ARG ARTIFACTS_URL
+ARG CI_TOKEN_USER
+ARG CI_JOB_TOKEN
+ARG CI_REPOSITORY_URL
 
 # Install essentials
 RUN apt-get update && \
