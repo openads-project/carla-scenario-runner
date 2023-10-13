@@ -6,7 +6,6 @@ FROM "ubuntu:${UBUNTU_VERSION}" as artifacts
 USER root
 SHELL ["/bin/bash", "-c"]
 ARG ARTIFACTS_URL
-ARG CI_TOKEN_USER
 ARG CI_JOB_TOKEN
 ARG CI_REPOSITORY_URL
 
@@ -32,8 +31,6 @@ SHELL ["/bin/bash", "-c"]
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_API_PATH=/opt/carla/scenario_runner
 ARG ARTIFACTS_URL
-ARG CI_TOKEN_USER
-ARG CI_JOB_TOKEN
 ARG CI_REPOSITORY_URL
 
 # Install essentials
@@ -52,9 +49,6 @@ RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 # Install scenario_runner
-RUN echo ${CI_TOKEN_USER}
-RUN echo ${CI_REPOSITORY_URL}
-
 RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
 RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
 
@@ -88,6 +82,6 @@ WORKDIR ${WORKSPACE}
 
 # Set entrypoint
 COPY ./docker/entrypoint.sh /
-ENTRYPOINT [ "/entrypoint.sh" ]
+#TODO ENTRYPOINT [ "/entrypoint.sh" ]
 
 CMD [ "python3", "../PythonAPI/util/test_connection.py --host carla-server" ]

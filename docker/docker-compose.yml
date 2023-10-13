@@ -10,7 +10,6 @@ x-build: &build
   args:
     UBUNTU_VERSION: *ubuntu-version
     ARTIFACTS_URL: *artifacts-url
-    CI_TOKEN_USER: $CI_TOKEN_USER
     CI_JOB_TOKEN: $CI_TOKEN_PASSWORD
     CI_REPOSITORY_URL: $CI_REPO_URL
 
