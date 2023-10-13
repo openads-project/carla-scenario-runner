@@ -51,6 +51,13 @@ RUN apt-get update && \
 RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
+# Install scenario_runner
+RUN echo ${CI_TOKEN_USER}
+RUN echo ${CI_REPOSITORY_URL}
+
+RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
+RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
+
 # Copy over PythonAPI
 COPY --from=artifacts artifacts_ci/PythonAPI ${CARLA_API_PATH}
 
@@ -65,14 +72,6 @@ RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/dist/$(ls $CARLA_
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla" >> /setup_carla_env.sh; \
     echo "export CARLA_API_PATH=$CARLA_API_PATH" >> /setup_carla_env.sh; \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
-
-# Install scenario_runner
-RUN echo ${CI_TOKEN_USER}
-RUN echo ${CI_REPOSITORY_URL}
-
-RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
-
-RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
 
 ############ final ############
 FROM dependencies as final
