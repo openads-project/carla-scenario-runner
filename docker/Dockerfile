@@ -8,6 +8,7 @@ SHELL ["/bin/bash", "-c"]
 ARG ARTIFACTS_URL
 ARG CI_TOKEN_USER
 ARG CI_JOB_TOKEN
+ARG CI_REPOSITORY_URL
 
 # Install curl + unzip
 RUN apt-get update && \
