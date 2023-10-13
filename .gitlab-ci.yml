@@ -16,7 +16,8 @@ variables:
   PUSH_AS_LATEST:   'true'
   # -----
   CI_TOKEN_USER:     gitlab-ci-token
-  CI_TOKEN_PASSWORD: $CI_JOB_TOKEN
+  CI_TOKEN_PASSWORD: $CI_REGISTRY_PASSWORD
+  CI_REPO_URL:       $CI_REPOSITORY_URL
   # -----
   DOCKER_COMPOSE_DIR:  docker
   DOCKER_COMPOSE_FILE: docker-compose.yml

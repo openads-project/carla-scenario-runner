@@ -62,7 +62,10 @@ RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/dist/$(ls $CARLA_
     echo "source /setup_carla_env.sh" >> ~/.bashrc
 
 # Install scenario_runner
-RUn git clone --recurse-submodules https://${CI_TOKEN_USER}:${CI_JOB_TOKEN}@gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/scenario_runner.git $SCENARIO_RUNNER_API_PATH
+RUN echo ${CI_TOKEN_USER}
+RUN echo ${CI_REPOSITORY_URL}
+
+RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
 
 RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
 
