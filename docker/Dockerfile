@@ -40,6 +40,7 @@ RUN apt-get update && \
       libomp5 \
       libjpeg-turbo8 libtiff-dev \
       libgeos-dev \
+      git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --upgrade pip
