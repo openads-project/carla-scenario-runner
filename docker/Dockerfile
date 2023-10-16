@@ -43,6 +43,7 @@ RUN apt-get update && \
       libjpeg-turbo8 libtiff-dev \
       libgeos-dev \
       git \
+      Flask\
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --upgrade pip
@@ -84,4 +85,4 @@ WORKDIR ${WORKSPACE}
 COPY ./docker/entrypoint.sh /
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-CMD [ "python3", "/opt/carla/PythonAPI/util/test_connection.py", "--host", "carla-server" ]
+CMD [ "python3", "scenario_runner_server.py" ]
