@@ -43,7 +43,6 @@ RUN apt-get update && \
       libjpeg-turbo8 libtiff-dev \
       libgeos-dev \
       git \
-      Flask\
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --upgrade pip
@@ -52,6 +51,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 # Install scenario_runner
 RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
 RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
+RUN pip3 install Flask
 
 # Copy over PythonAPI
 COPY --from=artifacts artifacts_ci/PythonAPI ${CARLA_API_PATH}
