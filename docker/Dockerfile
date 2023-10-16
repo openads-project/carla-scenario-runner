@@ -49,7 +49,8 @@ RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 # Install scenario_runner
-RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
+COPY . $SCENARIO_RUNNER_API_PATH
+RUN ls $SCENARIO_RUNNER_API_PATH
 RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
 RUN pip3 install Flask
 
