@@ -49,8 +49,9 @@ RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 # Install scenario_runner
-RUN git clone --recurse-submodules $CI_REPOSITORY_URL $SCENARIO_RUNNER_API_PATH
+COPY . $SCENARIO_RUNNER_API_PATH
 RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
+RUN pip3 install Flask
 
 # Copy over PythonAPI
 COPY --from=artifacts artifacts_ci/PythonAPI ${CARLA_API_PATH}
@@ -84,4 +85,4 @@ WORKDIR ${WORKSPACE}
 COPY ./docker/entrypoint.sh /
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-CMD [ "python3", "/opt/carla/PythonAPI/util/test_connection.py", "--host", "carla-server" ]
+CMD [ "python3", "scenario_runner_server.py" ]
