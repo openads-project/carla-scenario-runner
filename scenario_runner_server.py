@@ -23,6 +23,7 @@ def trigger_script():
         return str(e), 500
 
 if __name__ == '__main__':
-    app.run(host='carla-scenario-runner', port=4000, debug=True)
+    app.run(host='carla-scenario-runner', port=4000, debug=True) # server can be reached on 'carla-scenario-runner' and port 4000
 
-# curl -X POST -H "Content-Type: application/json" -d '{"args": ["--openscenario", "/scenarios/autopilot_town10.xosc"]}' http://carla-scenario-runner:4000/scenario_runner
+# Examplaric server call:
+#   curl -X POST -H "Content-Type: application/json" -d '{"args": ["--openscenario", "/scenarios/autopilot_town10.xosc"]}' http://carla-scenario-runner:4000/scenario_runner
