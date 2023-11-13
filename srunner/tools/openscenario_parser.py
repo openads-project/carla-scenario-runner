@@ -577,7 +577,7 @@ class OpenScenarioParser(object):
         return waypoints
 
     @staticmethod
-    def get_trajectory(xml_tree, catalogs):
+    def get_trajectory(xml_tree, catalogs, version):
         """
         Extract the trajectory from the OSC XML or a catalog
 
@@ -585,6 +585,7 @@ class OpenScenarioParser(object):
             xml_tree: Containing the trajectory information,
                 or the reference to the catalog it is defined in.
             catalogs: XML Catalogs that could contain the trajectory
+            version: version of the OpenSCENARIO file
 
         returns:
            waypoints: List of trajectory waypoints and times.
@@ -593,6 +594,16 @@ class OpenScenarioParser(object):
         trajectory = None
         waypoints = []
         times = []
+
+        # add layer for version 1.1 (afterwards 1.0 doing okay)
+        # Catalogue reference not included yet
+        print("VERSION: " + str(version))
+        if version["revMinor"] == "1":
+            if xml_tree.find("TrajectoryRef") is not None:
+                xml_tree = xml_tree.find("TrajectoryRef")
+                print("FOUND TREF")
+            else:
+                raise AttributeError("Unkown private FollowTrajectory action")
 
         if xml_tree.find('Trajectory') is not None:
             trajectory = xml_tree.find('Trajectory')
@@ -1150,7 +1161,7 @@ class OpenScenarioParser(object):
         return new_atomic
 
     @staticmethod
-    def convert_maneuver_to_atomic(action, actor, actor_list, catalogs):
+    def convert_maneuver_to_atomic(action, actor, actor_list, catalogs, version):
         """
         Convert an OpenSCENARIO maneuver action into a Behavior atomic
 
@@ -1401,7 +1412,7 @@ class OpenScenarioParser(object):
                     atomic = ChangeActorWaypoints(actor, waypoints=waypoints, name=maneuver_name)
                 elif private_action.find('FollowTrajectoryAction') is not None:
                     trajectory_action = private_action.find('FollowTrajectoryAction')
-                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs)
+                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, version)
                     atomic = ChangeActorWaypoints(actor, waypoints=list(zip(waypoints, ['shortest'] * len(waypoints))),
                                                   times=times, name=maneuver_name)
                 elif private_action.find('AcquirePositionAction') is not None:
