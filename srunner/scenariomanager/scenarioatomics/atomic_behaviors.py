@@ -871,21 +871,35 @@ class ChangeActorWaypoints(AtomicBehavior):
             if current_waypoint_idx >= len(self._times):
                 return py_trees.common.Status.SUCCESS
             remaining_time = self._times[current_waypoint_idx] - current_relative_time
-            self._update_speed(actor, self._waypoints[current_waypoint_idx], remaining_time)
+            prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
+            self._update_speed(actor, self._waypoints[current_waypoint_idx], prior_waypoint, remaining_time)
 
         return py_trees.common.Status.RUNNING
 
-    def _update_speed(self, actor, target_waypoint, remaining_time):
+    def _update_speed(self, actor, target_waypoint, prior_waypoint, remaining_time):
+        """
+        Update the velocity of the actor based on the distance to the target waypoint.
+        If target waypoint is already passed, actor decelerate until next waypoint is reached.
+        Check if waypoint is passed is done comparing velocities and target directions which should be similar for consecutive waypoints.
+        """
         target_location = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(
             target_waypoint[0]).location
         actor_location = CarlaDataProvider.get_location(self._actor)
+        velocity_vector = np.array([self._actor.get_velocity().x, self._actor.get_velocity().y, self._actor.get_velocity().z])
         remaining_dist = calculate_distance(actor_location, target_location)
+        pot_target_speed = remaining_dist / max(remaining_time, 0.001)
         
-        # check if waypoint ihas already been passed
-        if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y]), np.array([self._actor.get_velocity().x, self._actor.get_velocity().y])) > 0:
-            target_speed = remaining_dist / max(remaining_time, 0.001)
+        # check if waypoint has already been passed (velocity and direction should lead in similar direction)
+        if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), velocity_vector) >= 0:
+            target_speed = pot_target_speed
         else:
-            target_speed = 0
+            # check if valid that directions dont miss due to rough trajectory description
+            if prior_waypoint:
+                prior_location = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0]).location
+            if prior_location and np.dot([actor_location.x - prior_location.x, actor_location.y- prior_location.y, actor_location.z - prior_location.z], velocity_vector) <= 0:
+                target_speed = pot_target_speed
+            else:
+                target_speed = 0
         actor.update_target_speed(target_speed)
 
 
