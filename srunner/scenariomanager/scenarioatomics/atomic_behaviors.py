@@ -872,14 +872,21 @@ class ChangeActorWaypoints(AtomicBehavior):
                 return py_trees.common.Status.SUCCESS
             remaining_time = self._times[current_waypoint_idx] - current_relative_time
             self._update_speed(actor, self._waypoints[current_waypoint_idx], remaining_time)
+            # print(current_waypoint_idx)
 
         return py_trees.common.Status.RUNNING
 
     def _update_speed(self, actor, target_waypoint, remaining_time):
         target_location = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(
             target_waypoint[0]).location
-        remaining_dist = calculate_distance(CarlaDataProvider.get_location(self._actor), target_location)
-        target_speed = remaining_dist / max(remaining_time, 0.001)
+        actor_location = CarlaDataProvider.get_location(self._actor)
+        remaining_dist = calculate_distance(actor_location, target_location)
+        
+        # check whether it goes in same direction or not - increase speed altough waypoint is already passed (check if speed is same direction as next waypoint - else set target velocity to 0)
+        if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y]), np.array([self._actor.get_velocity().x, self._actor.get_velocity().y])) > 0:
+            target_speed = remaining_dist / max(remaining_time, 0.001)
+        else:
+            target_speed = 0
         actor.update_target_speed(target_speed)
 
 
