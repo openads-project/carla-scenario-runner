@@ -753,11 +753,7 @@ class ChangeActorWaypoints(AtomicBehavior):
 
     '''Note: When using routing options such as fastest or shortest, it is advisable to run
              in synchronous mode
-    """
-    # TODO!! check how trajectory is run for later initialized vehicle
-    static_count = 0
-    static_road_users = []
-    
+    """ 
     def __init__(self, actor, waypoints, times=None, name="ChangeActorWaypoints"):
         """
         Setup parameters
@@ -777,10 +773,6 @@ class ChangeActorWaypoints(AtomicBehavior):
         May throw if actor is not available as key for the ActorsWithController
         dictionary from Blackboard.
         """
-        actor_dict = {}  # TODO remove again
-        ChangeActorWaypoints.static_count += 1
-        ChangeActorWaypoints.static_road_users.append(self._actor)
-
         try:
             check_actors = operator.attrgetter("ActorsWithController")
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
@@ -897,8 +889,6 @@ class ChangeActorWaypoints(AtomicBehavior):
         # check if waypoint has already been passed (velocity and direction should lead in similar direction)
         if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), velocity_vector) >= 0:
             target_speed = pot_target_speed
-            if ChangeActorWaypoints.static_count == 2 and self._actor == ChangeActorWaypoints.static_road_users[-1]:
-                a = 0
         else:
             # check if valid that directions dont miss due to rough trajectory description
             prior_location = None
@@ -908,19 +898,6 @@ class ChangeActorWaypoints(AtomicBehavior):
                 target_speed = pot_target_speed
             else:
                 target_speed = 0
-            if ChangeActorWaypoints.static_count == 3 and self._actor == ChangeActorWaypoints.static_road_users[-1]:
-                a = 0
-        if ChangeActorWaypoints.static_count == 4 and self._actor == ChangeActorWaypoints.static_road_users[-1]:
-            target_speed = 5
-            actor_location = CarlaDataProvider.get_location(self._actor)
-            """
-            erkenntnis: der Verkehrsteilnehmer 3 fällt, da er bereits zu Beginn gespawned wird. allerdings wird er nicht neu regestriert, sondern ein neuer erstellt
-            """
-            print("actor location provider: x: " + str(actor_location.x) + " | y: " + str(actor_location.y) + " | z: " + str(actor_location.z))
-            print("actor location direct: x: " + str(self._actor.get_location().x) + " | y: " + str(self._actor.get_location().y) + " | z: " + str(self._actor.get_location().z))
-        else:
-            a = 0
-        # print(ChangeActorWaypoints.static_count)
         actor.update_target_speed(target_speed)
 
 
@@ -3752,22 +3729,27 @@ class AddActor(AtomicBehavior):
     A parallel termination behavior has to be used.
     """
 
-    def __init__(self, actor_type, transform, color=None, name="SpawnActor"):
+    def __init__(self, actor, actor_type, transform, init_velocity=carla.Vector3D(), color=None, name="SpawnActor"):
         """
         Setup class members
         """
-        super(AddActor, self).__init__(name)
+        super(AddActor, self).__init__(name, actor)
         self._actor_type = actor_type
+        self._actor = actor
         self._spawn_point = transform
         self._color = color
+        self._init_velocity = init_velocity
 
     def update(self):
         new_status = py_trees.common.Status.RUNNING
-        try:
-            new_actor = CarlaDataProvider.request_new_actor(
-                self._actor_type, self._spawn_point, color=self._color)
-            if new_actor:
-                new_status = py_trees.common.Status.SUCCESS
-        except:  # pylint: disable=bare-except
-            print("ActorSource unable to spawn actor")
+        self._actor.set_target_velocity(self._init_velocity)
+        self._actor.set_transform(self._spawn_point)
+        new_status = py_trees.common.Status.SUCCESS
+        #try:
+        #    new_actor = CarlaDataProvider.request_new_actor(
+        #        self._actor_type, self._spawn_point, color=self._color)
+        #    if new_actor:
+        #        new_status = py_trees.common.Status.SUCCESS
+        #except:  # pylint: disable=bare-except
+        #    print("ActorSource unable to spawn actor")
         return new_status

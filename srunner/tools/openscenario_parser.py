@@ -1296,7 +1296,7 @@ class OpenScenarioParser(object):
                             break
                     if entity_ref_actor is None:
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = AddActor(entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
+                    atomic = AddActor(actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
                     """elif global_action.find('EntityAction') is not None:
                 entity_action = global_action.find('EntityAction')
                 entity_ref = entity_action.attrib.get('entityRef')
