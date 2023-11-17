@@ -138,7 +138,7 @@ class World(object):
         self.recording_enabled = False
         self.recording_start = 0
 
-    def restart(self,args):
+    def restart(self, args):
 
         if self.restarted:
             return
@@ -921,7 +921,7 @@ def game_loop(args):
         pygame.display.flip()
 
         hud = HUD(args.width, args.height)
-        world = World(sim_world, hud, args)
+        world = World(client.get_world(), hud, args)
         controller = KeyboardControl(world, args.autopilot)
 
         sim_world.wait_for_tick()
