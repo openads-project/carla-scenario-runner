@@ -870,7 +870,11 @@ class ChangeActorWaypoints(AtomicBehavior):
                 return py_trees.common.Status.SUCCESS
             remaining_time = self._times[current_waypoint_idx] - current_relative_time
             prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
-            self._update_speed(actor, self._waypoints[current_waypoint_idx], prior_waypoint, remaining_time)
+            try:
+                self._update_speed(actor, self._waypoints[current_waypoint_idx], prior_waypoint, remaining_time)
+            except:
+                a = 0
+                # actor is no longer available
         return py_trees.common.Status.RUNNING
 
     def _update_speed(self, actor, target_waypoint, prior_waypoint, remaining_time):
@@ -885,6 +889,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         velocity_vector = np.array([self._actor.get_velocity().x, self._actor.get_velocity().y, self._actor.get_velocity().z])
         remaining_dist = calculate_distance(actor_location, target_location)
         pot_target_speed = remaining_dist / max(remaining_time, 0.001)
+
         
         # check if waypoint has already been passed (velocity and direction should lead in similar direction)
         if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), velocity_vector) >= 0:
