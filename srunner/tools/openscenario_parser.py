@@ -24,6 +24,8 @@ import carla
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.weather_sim import Weather
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLightStateSetter,
+                                                                      ActorDestroy, DeleteActor,
+                                                                      AddActor,
                                                                       ActorTransformSetterToOSCPosition,
                                                                       RunScript,
                                                                       ChangeWeather,
@@ -597,11 +599,9 @@ class OpenScenarioParser(object):
 
         # add layer for version 1.1 (afterwards 1.0 doing okay)
         # Catalogue reference not included yet
-        print("VERSION: " + str(version))
         if version["revMinor"] == "1":
             if xml_tree.find("TrajectoryRef") is not None:
                 xml_tree = xml_tree.find("TrajectoryRef")
-                print("FOUND TREF")
             else:
                 raise AttributeError("Unkown private FollowTrajectory action")
 
@@ -651,7 +651,6 @@ class OpenScenarioParser(object):
                 y = y * (-1.0)
                 yaw = yaw * (-1.0)
             return carla.Transform(carla.Location(x=x, y=y, z=z), carla.Rotation(yaw=yaw, pitch=pitch, roll=roll))
-
         elif ((position.find('RelativeWorldPosition') is not None) or
               (position.find('RelativeObjectPosition') is not None) or
               (position.find('RelativeLanePosition') is not None) or
@@ -1161,7 +1160,7 @@ class OpenScenarioParser(object):
         return new_atomic
 
     @staticmethod
-    def convert_maneuver_to_atomic(action, actor, actor_list, catalogs, version):
+    def convert_maneuver_to_atomic(action, actor, actor_list, catalogs, config):
         """
         Convert an OpenSCENARIO maneuver action into a Behavior atomic
 
@@ -1215,6 +1214,56 @@ class OpenScenarioParser(object):
                 else:
                     rule, value = None, parameter_action.find('SetAction').attrib.get('value')
                 atomic = ChangeParameter(parameter_ref, value=ParameterRef(value), rule=rule, name=maneuver_name)
+            elif global_action.find('EntityAction') is not None:
+                entity_action = global_action.find('EntityAction')
+                entity_ref = entity_action.attrib.get('entityRef')
+                if entity_action.find('DeleteEntityAction') is not None:
+                    entity_ref_actor = None
+                    for _actor in actor_list:
+                        if _actor is not None and 'role_name' in _actor.attributes:
+                            if entity_ref == _actor.attributes['role_name']:
+                                entity_ref_actor = _actor
+                                break
+                    if entity_ref_actor is None:
+                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
+                    atomic = ActorDestroy(entity_ref_actor)
+                elif entity_action.find('AddEntityAction') is not None:
+                    position = entity_action.find('AddEntityAction').find("Position")
+                    actor_transform = OpenScenarioParser.convert_position_to_transform(position)
+                    entity_ref_actor = None
+                    for _actor in config.other_actors:
+                        if _actor.rolename == entity_ref:
+                            entity_ref_actor = _actor
+                            break
+                    if entity_ref_actor is None:
+                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
+                    atomic = AddActor(entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
+                    """elif global_action.find('EntityAction') is not None:
+                entity_action = global_action.find('EntityAction')
+                entity_ref = entity_action.attrib.get('entityRef')
+                if entity_action.find('DeleteEntityAction') is not None:
+                    entity_ref_actor = None
+                    for _actor in actor_list:
+                        if _actor is not None and 'role_name' in _actor.attributes:
+                            if entity_ref == _actor.attributes['role_name']:
+                                entity_ref_actor = _actor
+                                break
+                    if entity_ref_actor is None:
+                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
+                    atomic = DeleteActor(entity_ref_actor)  # ActorDestroy
+                elif entity_action.find('AddEntityAction') is not None:
+                    position = entity_action.find('AddEntityAction').find("Position")
+                    actor_transform = OpenScenarioParser.convert_position_to_transform(position)
+                    entity_ref_actor = None
+                    for _actor in config.other_actors:
+                        if _actor.rolename == entity_ref:
+                            entity_ref_actor = _actor
+                            break
+                    if entity_ref_actor is None:
+                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
+                    atomic = AddActor(_actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
+                else:
+                    raise NotImplementedError("Requested EntityAction is not yet supported")"""
             else:
                 raise NotImplementedError("Global actions are not yet supported")
         elif action.find('UserDefinedAction') is not None:
@@ -1412,7 +1461,7 @@ class OpenScenarioParser(object):
                     atomic = ChangeActorWaypoints(actor, waypoints=waypoints, name=maneuver_name)
                 elif private_action.find('FollowTrajectoryAction') is not None:
                     trajectory_action = private_action.find('FollowTrajectoryAction')
-                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, version)
+                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, config.version)
                     atomic = ChangeActorWaypoints(actor, waypoints=list(zip(waypoints, ['shortest'] * len(waypoints))),
                                                   times=times, name=maneuver_name)
                 elif private_action.find('AcquirePositionAction') is not None:

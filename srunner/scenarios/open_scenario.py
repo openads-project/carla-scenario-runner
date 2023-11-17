@@ -15,6 +15,7 @@ import itertools
 import os
 import py_trees
 
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import ChangeWeather, ChangeRoadFriction, ChangeParameter
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import ChangeActorControl, ChangeActorTargetSpeed
 from srunner.scenariomanager.timer import GameTime
@@ -239,6 +240,8 @@ class OpenScenario(BasicScenario):
 
         init_behavior = py_trees.composites.Parallel(
             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="InitBehaviour")
+        
+        actor_list = self.other_actors + self.ego_vehicles + [None]
 
         for actor in self.config.other_actors + self.config.ego_vehicles:
             for carla_actor in self.other_actors + self.ego_vehicles:
@@ -247,6 +250,8 @@ class OpenScenario(BasicScenario):
                     actor_init_behavior = py_trees.composites.Sequence(name="InitActor{}".format(actor.rolename))
 
                     controller_atomic = None
+                    
+                    atomic = None
 
                     for private in self.config.init.iter("Private"):
                         if private.attrib.get('entityRef', None) == actor.rolename:
@@ -262,6 +267,8 @@ class OpenScenario(BasicScenario):
                         controller_atomic = ChangeActorControl(carla_actor, control_py_module=None, args={})
 
                     actor_init_behavior.add_child(controller_atomic)
+                    if atomic is not None:
+                        actor_init_behavior.add_child(atomic)
 
                     if actor.speed > 0:
                         actor_init_behavior.add_child(ChangeActorTargetSpeed(carla_actor, actor.speed, init_speed=True))
@@ -342,7 +349,7 @@ class OpenScenario(BasicScenario):
                                         for actor_id in actor_ids:
                                             maneuver_behavior = OpenScenarioParser.convert_maneuver_to_atomic(
                                                 child, joint_actor_list[actor_id],
-                                                joint_actor_list, self.config.catalogs, version=self.config.version)
+                                                joint_actor_list, self.config.catalogs, config=self.config)
                                             maneuver_behavior = StoryElementStatusToBlackboard(
                                                 maneuver_behavior, "ACTION", child.attrib.get('name'))
                                             parallel_actions.add_child(
@@ -498,3 +505,30 @@ class OpenScenario(BasicScenario):
         Remove all actors upon deletion
         """
         self.remove_all_actors()
+
+    def _initialize_actors(self, config):
+        """
+        Override the superclass method to initialize other actors
+        """
+        if config.other_actors:
+            for global_action in self.config.init.find("Actions").iter("GlobalAction"):
+                if global_action.find("EntityAction") is not None:
+                    entity_action = global_action.find("EntityAction")
+                    entity_ref = entity_action.attrib.get("entityRef")
+                    if entity_action.find('AddEntityAction') is not None:
+                        position = entity_action.find('AddEntityAction').find("Position")
+                        actor_transform = OpenScenarioParser.convert_position_to_transform(
+                            position, actor_list=config.other_actors + config.ego_vehicles)
+                        for actor in config.other_actors:
+                            if actor.rolename == entity_ref:
+                                actor.transform = actor_transform
+                    elif entity_action.find('DeleteEntityAction') is not None:
+                        for actor in config.other_actors:
+                            if actor.rolename == entity_ref:
+                                config.other_actors.remove(actor)
+
+            new_actors = CarlaDataProvider.request_new_actors(config.other_actors)
+            if not new_actors:
+                raise Exception("Error: Unable to add actors")
+            for new_actor in new_actors:
+                self.other_actors.append(new_actor)

@@ -395,7 +395,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         if not actor_found:
             # pylint: disable=line-too-long
             self.logger.warning(
-                " Warning: The actor '%s' was not assigned an initial position. Using (0,0,0)", actor_name)
+                " Warning: The actor '%s' was not assigned an initial position at t=0 (not relevant for later spawning vehicles). Using (0,0,0)", actor_name)
             # pylint: enable=line-too-long
 
         return actor_transform
