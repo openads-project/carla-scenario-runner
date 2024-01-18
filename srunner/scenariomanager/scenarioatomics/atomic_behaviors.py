@@ -763,6 +763,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         self._waypoints = waypoints
         self._start_time = None
         self._times = times
+        self._initial_timestep = True
 
     def initialise(self):
         """
@@ -799,7 +800,7 @@ class ChangeActorWaypoints(AtomicBehavior):
             else:
                 if i == 0:
                     mmap = CarlaDataProvider.get_map()
-                    ego_location = CarlaDataProvider.get_location(self._actor)
+                    ego_location = CarlaDataProvider._initial_timestepder.get_location(self._actor)
                     ego_waypoint = mmap.get_waypoint(ego_location)
                     try:
                         ego_next_wp = ego_waypoint.next(1)[0]
@@ -862,48 +863,95 @@ class ChangeActorWaypoints(AtomicBehavior):
 
         if actor.check_reached_waypoint_goal():
             return py_trees.common.Status.SUCCESS
-
+        from loguru import logger # REMOVE
         if self._times is not None:
             current_relative_time = GameTime.get_time() - self._start_time
             current_waypoint_idx = bisect_right(self._times, current_relative_time)
             if current_waypoint_idx >= len(self._times):
                 return py_trees.common.Status.SUCCESS
-            remaining_time = self._times[current_waypoint_idx] - current_relative_time
-            prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
             try:
-                self._update_speed(actor, self._waypoints[current_waypoint_idx], prior_waypoint, remaining_time)
-            except:
+                self._update_speed(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+            except RuntimeError:
+                # only if actor is already destroyed
                 a = 0
-                # actor is no longer available
+                   
         return py_trees.common.Status.RUNNING
 
-    def _update_speed(self, actor, target_waypoint, prior_waypoint, remaining_time):
+    def _update_speed(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
         """
         Update the velocity of the actor based on the distance to the target waypoint.
         If target waypoint is already passed, actor decelerate until next waypoint is reached.
         Check if waypoint is passed is done comparing velocities and target directions which should be similar for consecutive waypoints.
-        """
-        target_location = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(
-            target_waypoint[0]).location
-        actor_location = CarlaDataProvider.get_location(self._actor)
-        velocity_vector = np.array([self._actor.get_velocity().x, self._actor.get_velocity().y, self._actor.get_velocity().z])
-        remaining_dist = calculate_distance(actor_location, target_location)
-        pot_target_speed = remaining_dist / max(remaining_time, 0.001)
-
         
-        # check if waypoint has already been passed (velocity and direction should lead in similar direction)
-        if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), velocity_vector) >= 0:
-            target_speed = pot_target_speed
+        different opportunities due to inaccuracies internally in Carla processing:
+        teleporting = True: no smooth trajectory, but teleporting according to route
+        teleporting = False & current time occurence of road user < switch following method at time: setting velocity, teleport rotation, but not position
+        teleporting = False & current time occurence of road user >= switch following method at time: try to follow route with carla internal speed controller - quite inaccurate
+        
+        lookahead: indices of trajectories which should be used as a lookahead to smooth velocity profile
+        """
+        # get actual and target location
+        target_waypoint = self._waypoints[current_waypoint_idx]
+        target_transform = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(target_waypoint[0])
+        target_location = target_transform.location
+        actor_location = CarlaDataProvider.get_location(self._actor)
+        
+        # get further needed waypoints
+        offset_idx = lookahead
+        lookahead_idx = min(len(self._waypoints)-1, current_waypoint_idx+offset_idx)
+        prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
+        waypoint_ahead = self._waypoints[lookahead_idx]
+        transform_ahead = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(waypoint_ahead[0])
+        location_ahead = transform_ahead.location
+        
+        # accurate teleport action, but road user does not drive the trajectory
+        if teleporting:
+            self._actor.set_transform(target_transform)
+            return
+    
+        # calculate scalar speed according to lookahead
+        remaining_dist = self._direct_distance(actor_location, location_ahead)
+        remaining_time = self._times[lookahead_idx] - current_relative_time
+        target_speed = remaining_dist / max(remaining_time, 0.001)
+    
+        # set speed
+        if current_relative_time < switch_following_method_at_time:
+            # set speed at correct velocity without controller (not so smooth), but with lookahead
+            direction = carla.Vector3D(location_ahead.x-actor_location.x, location_ahead.y-actor_location.y, location_ahead.z-actor_location.z)
+            vector_length = math.sqrt(direction.x**2 + direction.y**2 + direction.z**2)
+            normalized_direction = carla.Vector3D(direction.x/vector_length, direction.y/vector_length, direction.z/vector_length)
+            velocity_vector = carla.Vector3D(normalized_direction.x*target_speed, normalized_direction.y*target_speed, normalized_direction.z*target_speed)
+            
+            # check if vehicle is on map. if not, leave velocity at 0
+            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 100:
+                # case if road user is not at envelope, but somewhere outside (teleport needed, so way to long)
+                actor.update_target_speed(0)
+                return
+            
+            self._actor.set_target_velocity(velocity_vector)
+            
+            # set slip = 0 (otherwise drifts occur)
+            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
+                transform = self._actor.get_transform()
+                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
+                self._actor.set_transform(transform)
         else:
-            # check if valid that directions dont miss due to rough trajectory description
-            prior_location = None
-            if prior_waypoint:
-                prior_location = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0]).location
-            if prior_location and np.dot([actor_location.x - prior_location.x, actor_location.y- prior_location.y, actor_location.z - prior_location.z], velocity_vector) <= 0:
+            # set target speed, according to physics/ controller smoothly. 
+            # Caution: this seems to be really inaccurate and not usefull for densed sampled trajectories
+        
+            # check if waypoint has already been passed (velocity and direction should lead in similar direction)
+            actual_velocity_vector = np.array([self._actor.get_velocity().x, self._actor.get_velocity().y, self._actor.get_velocity().z])
+            if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), actual_velocity_vector) >= 0:
                 target_speed = pot_target_speed
             else:
                 target_speed = 0
-        actor.update_target_speed(target_speed)
+        
+            # give new speed to road user controller
+            actor.update_target_speed(target_speed)
+
+    def _direct_distance(self, location_1, location_2):
+        return math.sqrt((location_1.x-location_2.x)**2 + (location_1.y-location_2.y)**2 + (location_1.z-location_2.z)**2)
+
 
 
 class ChangeActorWaypointsToReachPosition(ChangeActorWaypoints):

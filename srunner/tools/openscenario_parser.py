@@ -1284,6 +1284,7 @@ class OpenScenarioParser(object):
                                 entity_ref_actor = _actor
                                 break
                     if entity_ref_actor is None:
+                        print("Entity ref for actor which cannot be found: " + str(entity_action.attrib.get('entityRef')))
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
                     atomic = ActorDestroy(entity_ref_actor)
                 elif entity_action.find('AddEntityAction') is not None:
