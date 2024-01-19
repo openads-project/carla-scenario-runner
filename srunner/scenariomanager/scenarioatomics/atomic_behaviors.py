@@ -900,13 +900,32 @@ class ChangeActorWaypoints(AtomicBehavior):
         offset_idx = lookahead
         lookahead_idx = min(len(self._waypoints)-1, current_waypoint_idx+offset_idx)
         prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
+        prior_transform = None if prior_waypoint == None else sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0])
+        prior_location = None if prior_transform == None else prior_transform.location
+        
         waypoint_ahead = self._waypoints[lookahead_idx]
         transform_ahead = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(waypoint_ahead[0])
         location_ahead = transform_ahead.location
         
         # accurate teleport action, but road user does not drive the trajectory
         if teleporting:
-            self._actor.set_transform(target_transform)
+            # interpolating transform
+            if prior_location:
+                interpolated_location = carla.Location(x=0, y=0, z=0)
+                interpolated_rotation = carla.Rotation(pitch=0, yaw=0, roll=0)
+                def interpolate(before, after, scale):
+                    return before + (after-before)*scale
+                scale = (current_relative_time - self._times[max(current_waypoint_idx-1, 0)])/(self._times[current_waypoint_idx]-self._times[max(current_waypoint_idx-1, 0)])
+                interpolated_location.x = interpolate(prior_location.x, target_location.x, scale)
+                interpolated_location.y = interpolate(prior_location.y, target_location.y, scale)
+                interpolated_location.z = interpolate(prior_location.z, target_location.z, scale)
+                interpolated_rotation.pitch = interpolate(prior_transform.rotation.pitch, target_transform.rotation.pitch, scale)
+                interpolated_rotation.roll = interpolate(prior_transform.rotation.roll, target_transform.rotation.roll, scale)
+                interpolated_rotation.yaw = interpolate(prior_transform.rotation.yaw, target_transform.rotation.yaw, scale)
+                interpolated_transform = carla.Transform(interpolated_location, interpolated_rotation)
+            else:
+                interpolated_transform = target_transform
+            self._actor.set_transform(interpolated_transform)
             return
     
         # calculate scalar speed according to lookahead
