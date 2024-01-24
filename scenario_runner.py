@@ -197,7 +197,7 @@ class ScenarioRunner(object):
         for i, _ in enumerate(self.ego_vehicles):
             if self.ego_vehicles[i]:
                 if not self._args.waitForEgo and self.ego_vehicles[i] is not None and self.ego_vehicles[i].is_alive:
-                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id))
+                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id) + " in scenario_runner.py/_cleanup. Error may occur if ego vehicle is not controlled.")
                     self.ego_vehicles[i].destroy()
                 self.ego_vehicles[i] = None
         self.ego_vehicles = []
@@ -453,8 +453,9 @@ class ScenarioRunner(object):
 
         try:
             if self._args.record:
-                recorder_name = "{}/{}/{}.log".format(
-                    os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
+                #recorder_name = "{}/{}/{}.log".format(
+                #    os.getenv('SCENARIO_RUNNER_ROOT', "."), self._args.record, config.name)
+                recorder_name = "{}/{}.log".format(self._args.record, config.name)
                 self.client.start_recorder(recorder_name, True)
 
             # Load scenario and run it
