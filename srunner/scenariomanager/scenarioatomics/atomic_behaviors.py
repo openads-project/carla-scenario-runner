@@ -402,8 +402,10 @@ class UpdateAllActorControls(AtomicBehavior):
             pass
 
         for actor_id in actor_dict:
-            actor_dict[actor_id].run_step()
-
+            try:
+                actor_dict[actor_id].run_step()
+            except IndexError as e:
+                print("WARNING: Actor with id " + str(actor_id) + " cannot be updated within this step. Skip actor. Error: " + str(e))
         return py_trees.common.Status.RUNNING
 
 
