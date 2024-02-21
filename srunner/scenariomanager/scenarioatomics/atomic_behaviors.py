@@ -29,6 +29,8 @@ import py_trees
 from py_trees.blackboard import Blackboard
 import networkx
 
+from shapely import Polygon
+
 import carla
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.local_planner import RoadOption, LocalPlanner
@@ -766,7 +768,12 @@ class ChangeActorWaypoints(AtomicBehavior):
         self._start_time = None
         self._times = times
         self._initial_timestep = True
-
+        
+        # FOR ARTS
+        self._waypoint_transforms = [sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(wp[0]) for wp in waypoints]
+        self.moving_object_ids = []
+        self.loop_time = time.time()
+        
     def initialise(self):
         """
         Set _start_time and get (actor, controller) pair from Blackboard.
@@ -873,6 +880,7 @@ class ChangeActorWaypoints(AtomicBehavior):
                 return py_trees.common.Status.SUCCESS
             try:
                 self._update_speed(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                # self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
             except RuntimeError:
                 # only if actor is already destroyed
                 a = 0
@@ -963,16 +971,329 @@ class ChangeActorWaypoints(AtomicBehavior):
             # check if waypoint has already been passed (velocity and direction should lead in similar direction)
             actual_velocity_vector = np.array([self._actor.get_velocity().x, self._actor.get_velocity().y, self._actor.get_velocity().z])
             if np.dot(np.array([target_location.x-actor_location.x, target_location.y-actor_location.y, target_location.z-actor_location.z]), actual_velocity_vector) >= 0:
-                target_speed = pot_target_speed
+                target_speed = target_speed
             else:
                 target_speed = 0
         
             # give new speed to road user controller
             actor.update_target_speed(target_speed)
+            
+    def _update_speed_arts(self, actor, current_waypoint_idx, current_relative_time, lookahead=10):
+        """
+        dummy version to test arts here as a controller
+        """
+        # calculate time to see how long it takes
+        print("Time for complete loop: %.5f" % (time.time() - self.loop_time))
+        self.loop_time = time.time()
+        
+        # get actual location
+        actor_location = CarlaDataProvider.get_location(self._actor)
+        
+        # check mode (controller or trajectory following) - controller needed if too much behind regular trajectory or other road user disturbing
+        
+        # get target waypoint (use closest by)
+        current_waypoint_idx_guess = self._get_closest_waypoint_idx(actor_location, [trans.location for trans in self._waypoint_transforms])  # check for actual closest waypoint depending on actual location of actor
+        length_offset_idx = self._direct_distance(actor_location, self._waypoint_transforms[current_waypoint_idx].location)  # calculate the distance how far it is off
+        allowed_offset = 0.5  # m
+        last_waypoint_past = (length_offset_idx < allowed_offset) or (current_waypoint_idx_guess > current_waypoint_idx) # check if the regular waypoint is already past (or close to be past)
+        current_waypoint_idx = current_waypoint_idx_guess  # reset to actual point (not predicted)
+        
+        # get further needed waypoints BY NOW USUAL CODE; BUT NOT CORRECT FOR USE CASE - to be merged with get target waypoint
+        offset_idx = lookahead
+        lookahead_idx = min(len(self._waypoints)-1, current_waypoint_idx+offset_idx)
+        prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
+        prior_transform = None if prior_waypoint == None else sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0])
+        prior_location = None if prior_transform == None else prior_transform.location
+        
+        waypoint_ahead = self._waypoints[lookahead_idx]
+        transform_ahead = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(waypoint_ahead[0])
+        location_ahead = transform_ahead.location
+        
+        # define metric thresholds
+        threshold_thw = 1.0
+        threshold_ttc = 1.5
+        
+        # check whether thresholds are fullfilled
+        ttc = math.inf
+        thw = math.inf
+        all_actors = CarlaDataProvider.get_actors()
+        actors_to_consider = all_actors  # TODO: to be splitted
+        
+        # calculate metrics only if road user is not standing still
+        if self._calculate_velocity(self._actor.get_velocity()) > 0.2:
+            ttc = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_ttc, discretization=0.1)[0]
+            thw = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)[0]
+        # TODO: check which vehicle/ road user is ahead - by now, both stop (relevant for TTC -- also consider right before left (though that should be included in prioritized objects))
+        
+        # decide mode based on metrices and whether it is at correct waypoint
+        if ttc > threshold_ttc and thw > threshold_thw and last_waypoint_past:
+            follow_trajectory = True
+        else:
+            follow_trajectory = False
+    
+        # set speed
+        if follow_trajectory:
+            # calculate scalar speed according to lookahead
+            remaining_dist = self._direct_distance(actor_location, location_ahead)
+            remaining_time = self._times[lookahead_idx] - current_relative_time
+            target_speed = remaining_dist / max(remaining_time, 0.001)
+            
+            # if velocity is significantly different from what is available, make jump smaller
+            allowed_offset_ratio = 0.1
+            actual_velocity = self._calculate_velocity(self._actor.get_velocity())
+            target_speed = min((1+allowed_offset_ratio)*actual_velocity, target_speed) 
+            target_speed = max((1-allowed_offset_ratio)*actual_velocity, target_speed)
+            
+            # set speed at correct velocity without controller (not so smooth), but with lookahead
+            direction = carla.Vector3D(location_ahead.x-actor_location.x, location_ahead.y-actor_location.y, location_ahead.z-actor_location.z)
+            vector_length = math.sqrt(direction.x**2 + direction.y**2 + direction.z**2)
+            normalized_direction = carla.Vector3D(direction.x/vector_length, direction.y/vector_length, direction.z/vector_length)
+            velocity_vector = carla.Vector3D(normalized_direction.x*target_speed, normalized_direction.y*target_speed, normalized_direction.z*target_speed)
+            
+            # check if vehicle is on map. if not, leave velocity at 0
+            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 100:
+                # case if road user is not at envelope, but somewhere outside (teleport needed, so way to long)
+                actor.update_target_speed(0)
+                return
+            
+            self._actor.set_target_velocity(velocity_vector)
+            
+            # set slip = 0 (otherwise drifts occur)
+            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
+                transform = self._actor.get_transform()
+                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
+                self._actor.set_transform(transform)
+        else:
+            # use simple controller to avoid collisions/ get back to correct trajectory
+            # set slip = 0
+            velocity_vector = self._actor.get_velocity()
+            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
+                transform = self._actor.get_transform()
+                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
+                self._actor.set_transform(transform)
+            
+            # use throttle to accelerate/ break
+            # to mention: the velocity at the correct waypoint wont necessarily be reached with correct velocity (some actions taken above to make it smoother)
+            if ttc > threshold_ttc and thw > threshold_thw:
+                # accelerate to reach correct waypoint
+                if type(self._actor) == carla.libcarla.Walker:
+                    self._actor.apply_control(carla.WalkerControl(speed=self._calculate_velocity(self._actor.get_velocity())*1.1))
+                else:
+                    self._actor.apply_control(carla.VehicleControl(throttle = 1.0, brake = 0.0))
+            else:
+                # decelerate to avoid collision
+                if type(self._actor) == carla.libcarla.Walker:
+                    self._actor.apply_control(carla.WalkerControl(speed=0.0))
+                else:
+                    self._actor.apply_control(carla.VehicleControl(throttle = 0, brake = 1.0))
+            
+        return
+    
 
     def _direct_distance(self, location_1, location_2):
         return math.sqrt((location_1.x-location_2.x)**2 + (location_1.y-location_2.y)**2 + (location_1.z-location_2.z)**2)
 
+    def _calculate_velocity(self, velocity):
+        return math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
+
+    def _get_closest_waypoint_idx(self, actor_location, waypoints):
+        """
+        get closest waypoint to vehicle
+        """
+        actual_dist = math.inf
+        for index, wp in enumerate(waypoints):
+            cand_dist = self._direct_distance(actor_location, wp)
+            if cand_dist > actual_dist:
+                return index-1
+            else:
+                actual_dist = cand_dist
+        return len(waypoints)-1
+
+
+    """ ATTENTION: CODE MOSTLY COPIED FROM APPROACHING_SENSOR """
+    def _calc_advanced_ttx_metric(self, metric_type, current_idx, discretization=0.05, time_horizon=5.0, actors_to_consider=None):
+        """
+        calculation of a given ttx metic
+        available: thw, ttc
+        calculation for intersections (based on ego path and linear extrapolation of object movement)
+        """
+        # check if metric type available
+        if metric_type not in ["thw", "ttc"]:
+            print("ERROR: No such metric type '"+metric_type+"' available.")            
+            return None, None
+        
+        ttx = math.inf
+        considered_time_horizon_in_seconds = time_horizon
+        
+        ru_type = None
+        
+        # ego movement prediction based on polyline and actual velocity
+        ego_velocity_abs = self._calculate_velocity(self._actor.get_velocity())
+        if current_idx > len(self._waypoint_transforms)-1:
+            return ttx # then there is to less information to predict
+        predicted_ego_state = self._predict_ego_state(ego_velocity_abs, current_idx, considered_time_horizon_in_seconds, discretization)
+        
+        if actors_to_consider is None:
+            actors_to_consider = CarlaDataProvider.get_actors()
+        
+        for object_ru_item in actors_to_consider:
+            ttx_to_ru = math.inf
+            
+            # get actual ru state
+            object_ru = object_ru_item[1]
+            object_ru_id = object_ru_item[0]
+            object_transform = object_ru.get_transform()
+            object_bb = object_ru.bounding_box
+            object_location = object_transform.location
+            object_velocity = object_ru.get_velocity()
+            object_velocity_abs = self._calculate_velocity(object_velocity)
+            
+            # font check against ego road user
+            if object_ru == self._actor:
+                continue
+            
+            # filter potentially irrelevant rus (always standing as observed) 
+            # WARNING: this include objects always parking although they may be on street. Simplification done for calculation efficiency 
+            if object_velocity_abs < 0.01 and object_ru_id not in self.moving_object_ids:
+                continue
+            
+            if object_ru_id not in self.moving_object_ids:
+                self.moving_object_ids.append(object_ru_id)
+            
+            if metric_type == "ttc":
+                project_object_state = True
+            elif metric_type == "thw":
+                project_object_state = False
+            
+            # extrapolate state x seconds (according to velocity vector - without taking infrastructure into account)
+            for index, timestep in enumerate(np.arange(0, considered_time_horizon_in_seconds, discretization)):
+                if len(predicted_ego_state) > index:  # check if prediction is available or cannot be made (e.g. because of significant extrapolation)
+                    distance, can_be_reached = self._check_projected_distance(predicted_ego_state[index], ego_vel_abs=ego_velocity_abs, object_ru=object_ru, object_transform=object_transform, object_velocity=object_velocity, object_abs_velocity=object_velocity_abs, timestep=timestep, max_time=considered_time_horizon_in_seconds, project_object=project_object_state)
+                    if not can_be_reached:
+                        break
+                    if distance == 0:
+                        ttx_to_ru = timestep
+                        break
+                
+            # check whether it is the smallest 
+            if ttx_to_ru < ttx:
+                ru_type = object_ru.type_id
+            ttx = min(ttx, ttx_to_ru)
+        return ttx, ru_type
+    
+    def _check_projected_distance(self, predicted_ego_state, ego_vel_abs, object_ru, object_transform, 
+                                  object_velocity, object_abs_velocity, timestep, max_time, project_object=True):
+        approx_distance = math.inf
+        can_be_reached = True
+        
+        object_rotation = object_transform.rotation
+        object_location = object_transform.location
+        
+        if project_object:
+            length = timestep
+        else:
+            length = 0.0
+        
+        predict_object_location = carla.Vector3D(x=object_location.x + length * object_velocity.x, 
+                                                 y=object_location.y + length * object_velocity.y, 
+                                                 z=object_location.z + length * object_velocity.z)
+        
+        # check first approximated distance whether it make sense to include a more accurate calculation
+        approx_distance = self._direct_distance(predict_object_location, predicted_ego_state["location"])
+        
+        # check if can be reached (really rough estimation - can be improved if necessary)
+        if (object_abs_velocity + ego_vel_abs) * (max_time-timestep) > approx_distance:
+            can_be_reached = True
+        else:
+            can_be_reached = False
+        
+        approx_bb_ego = max(2, predicted_ego_state["bb"].length / 4) # divided by 4 because it is circumfence and only half of length and width is needed
+        approx_bb_object = max(2, object_ru.bounding_box.extent.x + object_ru.bounding_box.extent.y)
+        if approx_distance < (approx_bb_ego + approx_bb_object):
+            rect_1 = self._get_bb_shapely(predict_object_location, object_rotation, object_ru.bounding_box.extent.x, object_ru.bounding_box.extent.y)
+            if rect_1.intersects(predicted_ego_state["bb"]):
+                approx_distance = 0
+        return approx_distance, can_be_reached
+    
+    def _get_bb_shapely(self, location, rotation, length, width):
+        # check if length and width is feasible (is done since carla bounding boxes for bicyclist have width and length 0):
+        if length == 0:
+            length = 1.5
+        if width == 0:
+            width = 0.3
+        
+        # Get the corners of the bounding box
+        corners = [
+            carla.Location(x=length, y=width),
+            carla.Location(x=-length, y=width),
+            carla.Location(x=-length, y=-width),
+            carla.Location(x=length, y=-width),
+        ]
+
+        # Rotate the corners according to the actor's rotation
+        rad_yaw = np.deg2rad(rotation.yaw)
+        rotated_corners = [
+            carla.Location(
+                x=c.x * np.cos(rad_yaw) - c.y * np.sin(rad_yaw),
+                y=c.x * np.sin(rad_yaw) + c.y * np.cos(rad_yaw)
+            ) + location
+            for c in corners
+        ]
+
+        return Polygon([[rotated_corners[0].x, rotated_corners[0].y],
+                        [rotated_corners[1].x, rotated_corners[1].y],
+                        [rotated_corners[2].x, rotated_corners[2].y],
+                        [rotated_corners[3].x, rotated_corners[3].y]
+            
+        ])
+        
+    def _predict_ego_state(self, ego_velocity_abs, current_idx, considered_time_horizon_in_seconds, discretization, offset=0.0):
+        """
+        predict ego state since there may be curves
+        """
+        predicted_ego_state = []
+        
+        last_wp_idx = current_idx
+        abs_length = 0
+        
+        # discretization of timesteps to assign the correct locatino for each of those
+        for index_time_discretization, timestep in enumerate(np.arange(0.0, considered_time_horizon_in_seconds, discretization)):
+            
+            # distance to cover (ego drives in a certain timestep according to velocity)
+            extrapolated_distance = ego_velocity_abs * timestep
+            extrapolation_successful = False
+            for index_wp_go_through, upcomming_wp in enumerate(self._waypoint_transforms[last_wp_idx+1:]):
+                upcomming_wp = upcomming_wp.location
+                last_wp_idx_cand = last_wp_idx+index_wp_go_through
+                last_wp = self._waypoint_transforms[last_wp_idx_cand].location
+                d_length = self._direct_distance(upcomming_wp, last_wp)
+                
+                if abs_length + d_length <= extrapolated_distance and not index_wp_go_through == (len(self._waypoint_transforms[last_wp_idx+1:])-1):
+                    # distance not reached -> go to next wp; exception: last wp reached -> extrapolate
+                    abs_length += d_length
+                else:
+                    # calculate values
+                    # location in this region
+                    scale = (extrapolated_distance-abs_length) / d_length
+                    dx = upcomming_wp.x-last_wp.x
+                    dy = upcomming_wp.y-last_wp.y
+                    location = carla.Vector3D(x=last_wp.x + scale * dx, 
+                                            y=last_wp.y + scale * dy)
+                    rotation = carla.Rotation(yaw=180/math.pi*np.arctan2(dy, dx))
+                    
+                    # save new last waypoint
+                    last_wp_idx = last_wp_idx_cand
+                    
+                    extrapolation_successful = True
+                    break
+
+            if extrapolation_successful:
+                predicted_ego_state.append({"bb": self._get_bb_shapely(location, rotation, 
+                                                                    length=self._actor.bounding_box.extent.x+offset, 
+                                                                    width=self._actor.bounding_box.extent.y+offset), 
+                                            "location": location, "rotation": rotation})
+        return predicted_ego_state
+        
 
 
 class ChangeActorWaypointsToReachPosition(ChangeActorWaypoints):
