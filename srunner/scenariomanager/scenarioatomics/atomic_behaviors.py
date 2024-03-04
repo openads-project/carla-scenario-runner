@@ -758,7 +758,7 @@ class ChangeActorWaypoints(AtomicBehavior):
     '''Note: When using routing options such as fastest or shortest, it is advisable to run
              in synchronous mode
     """ 
-    def __init__(self, actor, waypoints, times=None, name="ChangeActorWaypoints"):
+    def __init__(self, actor, waypoints, times=None, name="ChangeActorWaypoints", additional_parameters=None):
         """
         Setup parameters
         """
@@ -770,9 +770,18 @@ class ChangeActorWaypoints(AtomicBehavior):
         self._initial_timestep = True
         
         # FOR ARTS
+        self.arts = False
         self._waypoint_transforms = [sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(wp[0]) for wp in waypoints]
         self.moving_object_ids = []
         self.loop_time = time.time()
+        
+        if additional_parameters and "arts" in additional_parameters.keys():
+            if additional_parameters["arts"] == "True":
+                if "check_for_road_user" in additional_parameters: 
+                    self.prioritized_objects = additional_parameters["check_for_road_user"]
+                else:
+                    self.prioritized_objects = []
+                self.arts = True
         
     def initialise(self):
         """
@@ -879,8 +888,10 @@ class ChangeActorWaypoints(AtomicBehavior):
             if current_waypoint_idx >= len(self._times):
                 return py_trees.common.Status.SUCCESS
             try:
-                self._update_speed(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-                # self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                if self.arts:
+                    self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                else:
+                    self._update_speed(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
             except RuntimeError:
                 # only if actor is already destroyed
                 a = 0
@@ -982,10 +993,6 @@ class ChangeActorWaypoints(AtomicBehavior):
         """
         dummy version to test arts here as a controller
         """
-        # calculate time to see how long it takes
-        print("Time for complete loop: %.5f" % (time.time() - self.loop_time))
-        self.loop_time = time.time()
-        
         # get actual location
         actor_location = CarlaDataProvider.get_location(self._actor)
         
@@ -1016,14 +1023,22 @@ class ChangeActorWaypoints(AtomicBehavior):
         # check whether thresholds are fullfilled
         ttc = math.inf
         thw = math.inf
-        all_actors = CarlaDataProvider.get_actors()
-        actors_to_consider = all_actors  # TODO: to be splitted
         
+        # only check for road users which are prioritized to reduce runtime
+        all_actors = CarlaDataProvider.get_actors()
+        if len(self.prioritized_objects) == 0:
+            actors_to_consider = all_actors
+        else:
+            actors_to_consider = []
+            for actor in all_actors:
+                if actor[1].attributes["role_name"] in self.prioritized_objects:
+                    actors_to_consider.append(actor)
+                        
         # calculate metrics only if road user is not standing still
+        # CAUTION: no direction of ttc calculated or rules investigated - comes excusively from prioritized objects by now
         if self._calculate_velocity(self._actor.get_velocity()) > 0.2:
             ttc = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_ttc, discretization=0.1)[0]
             thw = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)[0]
-        # TODO: check which vehicle/ road user is ahead - by now, both stop (relevant for TTC -- also consider right before left (though that should be included in prioritized objects))
         
         # decide mode based on metrices and whether it is at correct waypoint
         if ttc > threshold_ttc and thw > threshold_thw and last_waypoint_past:

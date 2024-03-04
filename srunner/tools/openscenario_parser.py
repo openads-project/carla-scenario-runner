@@ -601,6 +601,7 @@ class OpenScenarioParser(object):
         trajectory = None
         waypoints = []
         times = []
+        parameters = {}
 
         # add layer for version 1.1 (afterwards 1.0 doing okay)
         # Catalogue reference not included yet
@@ -631,10 +632,22 @@ class OpenScenarioParser(object):
                 raise AttributeError("Nurbs shapes are currently unsupported")
             else:
                 raise AttributeError("Requested shape {} isn't a valid shape".format(shape))
+            
+            # get available parameter declarations for trajectory
+            parameter_declarations = trajectory.find("ParameterDeclarations")
+            for parameter_declaration in parameter_declarations.findall("ParameterDeclaration"):
+                if parameter_declaration.get("name") == "check_for_road_user":
+                    if parameter_declaration.get("name") in parameters.keys():
+                        parameters[parameter_declaration.get("name")].append(parameter_declaration.get("value"))
+                    else:
+                        parameters[parameter_declaration.get("name")] = [parameter_declaration.get("value")]
+                else:
+                    parameters[parameter_declaration.get("name")] = parameter_declaration.get("value")
+            
         else:
             raise AttributeError("No waypoints has been set")
 
-        return waypoints, times
+        return waypoints, times, parameters
 
     @staticmethod
     def convert_position_to_transform(position, actor_list=None):
@@ -1540,9 +1553,9 @@ class OpenScenarioParser(object):
                     atomic = ChangeActorWaypoints(actor, waypoints=waypoints, name=maneuver_name)
                 elif private_action.find('FollowTrajectoryAction') is not None:
                     trajectory_action = private_action.find('FollowTrajectoryAction')
-                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, config.version)
+                    waypoints, times, parameters = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, config.version)
                     atomic = ChangeActorWaypoints(actor, waypoints=list(zip(waypoints, ['shortest'] * len(waypoints))),
-                                                  times=times, name=maneuver_name)
+                                                  times=times, name=maneuver_name, additional_parameters=parameters)
                 elif private_action.find('AcquirePositionAction') is not None:
                     route_action = private_action.find('AcquirePositionAction')
                     osc_position = route_action.find('Position')
