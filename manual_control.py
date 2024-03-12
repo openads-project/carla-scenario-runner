@@ -67,7 +67,6 @@ try:
     from pygame.locals import K_F1
     from pygame.locals import KMOD_CTRL
     from pygame.locals import KMOD_SHIFT
-    from pygame.locals import K_BACKSPACE
     from pygame.locals import K_TAB
     from pygame.locals import K_SPACE
     from pygame.locals import K_UP
@@ -114,8 +113,6 @@ def get_actor_display_name(actor, truncate=250):
 
 class World(object):
 
-    restarted = False
-
     def __init__(self, carla_world, hud, args):
         self.world = carla_world
         try:
@@ -140,10 +137,6 @@ class World(object):
 
     def restart(self,args):
 
-        if self.restarted:
-            return
-        self.restarted = True
-
         self.player_max_speed = 1.589
         self.player_max_speed_fast = 3.713
 
@@ -167,7 +160,7 @@ class World(object):
 
                     self.world.get_spectator().set_transform(transform)
                     break
-        
+
         self.player_name = self.player.type_id
 
         # Set up the sensors.
@@ -183,9 +176,14 @@ class World(object):
 
         self.world.wait_for_tick()
 
-    def tick(self, clock):
+    def tick(self, clock, wait_for_repetitions):
         if len(self.world.get_actors().filter(self.player_name)) < 1:
-            return False
+            if not wait_for_repetitions:
+                return False
+            else:
+                self.player = None
+                self.destroy()
+                self.restart()
 
         self.hud.tick(self, clock)
         return True
@@ -238,13 +236,6 @@ class KeyboardControl(object):
             elif event.type == pygame.KEYUP:
                 if self._is_quit_shortcut(event.key):
                     return True
-                elif event.key == K_BACKSPACE:
-                    if self._autopilot_enabled:
-                        world.player.set_autopilot(False)
-                        world.restart()
-                        world.player.set_autopilot(True)
-                    else:
-                        world.restart()
                 elif event.key == K_F1:
                     world.hud.toggle_info()
                 elif event.key == K_TAB:
@@ -921,7 +912,7 @@ def game_loop(args):
         pygame.display.flip()
 
         hud = HUD(args.width, args.height)
-        world = World(sim_world, hud, args)
+        world = World(client.get_world(), hud, args)
         controller = KeyboardControl(world, args.autopilot)
 
         sim_world.wait_for_tick()
@@ -931,7 +922,7 @@ def game_loop(args):
             clock.tick_busy_loop(60)
             if controller.parse_events(client, world, clock):
                 return
-            if not world.tick(clock):
+            if not world.tick(clock, args.wait_for_repetitions):
                 return
             world.render(display)
             pygame.display.flip()
@@ -992,6 +983,10 @@ def main():
         '--keep_ego_vehicle',
         action='store_true',
         help='do not destroy ego vehicle on exit')
+    argparser.add_argument(
+        '--wait-for-repetitions',
+        action='store_true',
+        help='Avoids stopping the manual control when the scenario ends.')
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]
