@@ -770,7 +770,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         self._times = times
         self._initial_timestep = True
         
-        # FOR ARTS
+        # addition for Aadvanced replay to sim (ARtS)
         self.arts = False
         self._waypoint_transforms = [sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(wp[0]) for wp in waypoints]
         self.moving_object_ids = []
@@ -890,17 +890,16 @@ class ChangeActorWaypoints(AtomicBehavior):
                 return py_trees.common.Status.SUCCESS
             try:
                 if self.arts:
-                    self._update_speed_arts_new(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                    self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
                 else:
-                    self._update_speed(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                    self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
             except RuntimeError:
                 # only if actor is already destroyed
-                if self._actor.attributes["role_name"] == "o_RU102":
-                    a = 0
+                print("Faced runtime error updating speed for entity " + str(self._actor.id))
                    
         return py_trees.common.Status.RUNNING
 
-    def _update_speed(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
+    def _update_speed_rts(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
         """
         Update the velocity of the actor based on the distance to the target waypoint.
         If target waypoint is already passed, actor decelerate until next waypoint is reached.
@@ -991,7 +990,7 @@ class ChangeActorWaypoints(AtomicBehavior):
             # give new speed to road user controller
             actor.update_target_speed(target_speed)
             
-    def _update_speed_arts_new(self, actor, current_waypoint_idx, current_relative_time, lookahead=10):
+    def _update_speed_arts(self, actor, current_waypoint_idx, current_relative_time, lookahead=10):
         from enum import IntEnum
         class ARtSMode(IntEnum):
             """
@@ -1043,8 +1042,6 @@ class ChangeActorWaypoints(AtomicBehavior):
                         
         # calculate metrics only if road user is not standing still
         # CAUTION: no direction of ttc calculated or rules investigated - comes excusively from prioritized objects by now
-        ru_name_thw = "NONE"
-        ru_name_ttc = "NONE"
         if self._calculate_velocity(self._actor.get_velocity()) > 0.2:
             ttc, ru_name_ttc = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_ttc, discretization=0.1)
             thw, ru_name_thw = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)
@@ -1091,179 +1088,6 @@ class ChangeActorWaypoints(AtomicBehavior):
             self._actor.set_transform(transform)    
         
         return
-            
-    def _update_speed_arts_outdated(self, actor, current_waypoint_idx, current_relative_time, lookahead=10):
-        """
-        dummy version to test arts here as a controller
-        """
-        from enum import IntEnum
-        class ARtSMode(IntEnum):
-            """
-            different modes for road user for arts
-            """
-            Wait = 1
-            Catchup = 2
-            FollowTrajectory = 3 
-            
-        # get actual location
-        actor_location = CarlaDataProvider.get_location(self._actor)
-        
-        # check mode (controller or trajectory following) - controller needed if too much behind regular trajectory or other road user disturbing
-        
-        # get target waypoint (use closest by)
-        current_waypoint_idx_guess = self._get_closest_waypoint_idx(actor_location, [trans.location for trans in self._waypoint_transforms])  # check for actual closest waypoint depending on actual location of actor
-        length_offset_idx = self._direct_distance(actor_location, self._waypoint_transforms[current_waypoint_idx].location)  # calculate the distance how far it is off
-        allowed_offset = 0.5  # m
-        last_waypoint_past = (length_offset_idx < allowed_offset) or (current_waypoint_idx_guess > current_waypoint_idx) or (current_waypoint_idx < 10) # check if the regular waypoint is already past (or close to be past)
-        #current_waypoint_idx = current_waypoint_idx_guess  # reset to actual point (not predicted)
-        
-        # get further needed waypoints BY NOW USUAL CODE; BUT NOT CORRECT FOR USE CASE - to be merged with get target waypoint
-        offset_idx = lookahead
-        lookahead_idx = min(len(self._waypoints)-1, current_waypoint_idx+offset_idx)
-        prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
-        prior_transform = None if prior_waypoint == None else sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0])
-        prior_location = None if prior_transform == None else prior_transform.location
-        
-        waypoint_ahead = self._waypoints[lookahead_idx]
-        transform_ahead = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(waypoint_ahead[0])
-        location_ahead = transform_ahead.location
-        
-        # define metric thresholds
-        threshold_thw = 1.0
-        threshold_ttc = 1.5
-        threshold_dhw = 1.0
-        
-        # check whether thresholds are fullfilled
-        ttc = math.inf
-        thw = math.inf
-        dhw = math.inf
-        
-        # only check for road users which are prioritized to reduce runtime
-        all_actors = CarlaDataProvider.get_actors()
-        actors_to_consider = []
-        for actor_ent in all_actors:
-            if actor_ent[1].attributes["role_name"] in self.prioritized_objects:
-                actors_to_consider.append(actor_ent)
-                        
-        # calculate metrics only if road user is not standing still
-        # CAUTION: no direction of ttc calculated or rules investigated - comes excusively from prioritized objects by now
-        ru_name_thw = "NONE"
-        ru_name_ttc = "NONE"
-        if self._calculate_velocity(self._actor.get_velocity()) > 0.2:
-            ttc, ru_name_ttc = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_ttc, discretization=0.1)
-            thw, ru_name_thw = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)
-        dhw, ru_name_dhw = self._calc_advanced_ttx_metric(metric_type="dhw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)
-        
-        # decide mode based on metrices and whether it is at correct waypoint        
-        if ttc > threshold_ttc and thw > threshold_thw and dhw > threshold_dhw:
-            if last_waypoint_past:
-                arts_mode = ARtSMode.FollowTrajectory
-            else:
-                arts_mode = ARtSMode.Catchup
-        else:
-            arts_mode = ARtSMode.Wait
-            
-        arts_mode = ARtSMode.FollowTrajectory
-            
-        # set speed
-        if arts_mode == ARtSMode.FollowTrajectory:
-            # calculate scalar speed according to lookahead
-            remaining_dist = self._direct_distance(actor_location, location_ahead)
-            remaining_time = self._times[lookahead_idx] - current_relative_time
-            target_speed = remaining_dist / max(remaining_time, 0.001)
-            
-            # if velocity is significantly different from what is available, make jump smaller
-            allowed_offset_ratio = 0.1
-            actual_velocity = self._calculate_velocity(self._actor.get_velocity())
-            target_speed = min((1+allowed_offset_ratio)*actual_velocity+1, target_speed) 
-            target_speed = max((1-allowed_offset_ratio)*actual_velocity, target_speed)
-            
-            # set speed at correct velocity without controller (not so smooth), but with lookahead
-            direction = carla.Vector3D(location_ahead.x-actor_location.x, location_ahead.y-actor_location.y, location_ahead.z-actor_location.z)
-            vector_length = math.sqrt(direction.x**2 + direction.y**2 + direction.z**2)
-            normalized_direction = carla.Vector3D(direction.x/vector_length, direction.y/vector_length, direction.z/vector_length)
-            velocity_vector = carla.Vector3D(normalized_direction.x*target_speed, normalized_direction.y*target_speed, normalized_direction.z*target_speed)
-            
-            # check if vehicle is on map. if not, leave velocity at 0
-            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 100:
-                # case if road user is not at envelope, but somewhere outside (teleport needed, so way to long)
-                # actor.update_target_speed(0)
-                self._actor.set_target_velocity(carla.Vector3D(0,0,0))
-                return
-            
-            self._actor.set_target_velocity(velocity_vector)
-            
-            # set slip = 0 (otherwise drifts occur)
-            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
-                transform = self._actor.get_transform()
-                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
-                self._actor.set_transform(transform)
-                
-            if self._actor.attributes["role_name"] == "o_RU102":
-                logger.info("Trajectory with velocity: " + str(velocity_vector))
-                
-        else:
-            # use simple controller to avoid collisions/ get back to correct trajectory
-            direction = carla.Vector3D(location_ahead.x-actor_location.x, location_ahead.y-actor_location.y, location_ahead.z-actor_location.z)
-            vector_length = math.sqrt(direction.x**2 + direction.y**2 + direction.z**2)
-            normalized_direction = carla.Vector3D(direction.x/vector_length, direction.y/vector_length, direction.z/vector_length)
-            
-            # calculate scalar speed according to lookahead
-            remaining_dist = self._direct_distance(actor_location, location_ahead)
-            remaining_time = self._times[lookahead_idx] - current_relative_time
-            target_speed = remaining_dist / max(remaining_time, 0.001)
-            
-            # if velocity is significantly different from what is available, make jump smaller
-            allowed_offset_ratio = 0.1
-            actual_velocity = self._calculate_velocity(self._actor.get_velocity())
-            target_speed = min((1+allowed_offset_ratio)*actual_velocity+1, target_speed) 
-            target_speed = max((1-allowed_offset_ratio)*actual_velocity, target_speed)
-            
-            #if self._actor.attributes["role_name"] == "o_RU102":
-            #    logger.info("Actual control: throttle: " + str(self._actor.get_control().throttle) + " | break: " + str(self._actor.get_control().brake))
-            
-            
-            # use throttle to accelerate/ break
-            # to mention: the velocity at the correct waypoint wont necessarily be reached with correct velocity (some actions taken above to make it smoother)
-            if arts_mode == ARtSMode.Catchup:
-                # accelerate to reach correct waypoint
-                #actor.update_target_speed(max(self._calculate_velocity(velocity_vector)*1.1, 5.0))
-                if type(self._actor) == carla.libcarla.Walker:
-                    #self._actor.apply_control(carla.WalkerControl(speed=self._calculate_velocity(self._actor.get_velocity())*1.1))
-                    a = 0
-                else:
-                    #self._actor.apply_control(carla.VehicleControl(throttle = 1.0, brake = 0.0))
-                    #actor.update_target_speed(20)
-                    a = 0
-                target_speed = target_speed * 1.2
-            elif arts_mode == ARtSMode.Wait:               
-                # decelerate to avoid collision
-                #if type(self._actor) == carla.libcarla.Walker:
-                #    self._actor.apply_control(carla.WalkerControl(speed=0.0))
-                #else:
-                #    self._actor.apply_control(carla.VehicleControl(throttle = 0.0, brake = 1.0))
-                target_speed = 0
-                if self._actor.attributes["role_name"] == "o_RU102":
-                    logger.info("Dec 102")
-            else:
-                logger.error("No valid ARtS mode chosen for road user "+self._actor.attributes["role_name"]+".")
-            
-            velocity_vector = carla.Vector3D(normalized_direction.x*target_speed, normalized_direction.y*target_speed, normalized_direction.z*target_speed)
-            if self._actor.attributes["role_name"] == "o_RU102":
-                print("real velocity: " + str(self._actor.get_velocity()))
-            self._actor.set_target_velocity(velocity_vector)
-            if self._actor.attributes["role_name"] == "o_RU102":
-                print("set velocity: " + str(velocity_vector))
-                print("real velocity: " + str(self._actor.get_velocity()))
-                print("-----------------------")
-            #velocity_vector = self._actor.get_velocity()
-            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 0.2:
-                transform = self._actor.get_transform()
-                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
-                #transform.rotation.yaw = (transform.rotation.yaw + (0.01*(np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360)-transform.rotation.yaw))%360
-                self._actor.set_transform(transform)
-        return
-    
 
     def _direct_distance(self, location_1, location_2):
         return math.sqrt((location_1.x-location_2.x)**2 + (location_1.y-location_2.y)**2 + (location_1.z-location_2.z)**2)
@@ -1284,8 +1108,6 @@ class ChangeActorWaypoints(AtomicBehavior):
                 actual_dist = cand_dist
         return len(waypoints)-1
 
-
-    """ ATTENTION: CODE MOSTLY COPIED FROM APPROACHING_SENSOR """
     def _calc_advanced_ttx_metric(self, metric_type, current_idx, discretization=0.05, time_horizon=5.0, actors_to_consider=None):
         """
         calculation of a given ttx metic
