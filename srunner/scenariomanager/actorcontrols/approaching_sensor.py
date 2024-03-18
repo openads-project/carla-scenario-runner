@@ -4,14 +4,10 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 """
-This module provides an control for vehicles which
-use a dedicated sensorsetup in combination with an AEB-System.
-The logic of the AEB-System is implemented inside the _set_new_velocity-function.
+This module provides an control for vehicles following a predefined path and breaking for vehicles in front of it 
+(no matter if it is on an intersection or not)
 
-This sensorsetup consists of a single radar-sensor with an opening angle of 10 degrees
-and a sensor-range of 200m.
-
-The ttc_threshold of 1.1 seconds is set after calibration with Euro-NCAP-Scenarios. 
+There is no sensor included, but ground trouth data is used 
 """
 from distutils.util import strtobool
 import math
@@ -26,12 +22,7 @@ from shapely.geometry import Polygon
 
 
 class ApproachingSensor(BasicControl):
-    """
-    Controller according to following sources:
-    SensorSetup: https://www-esv.nhtsa.dot.gov/Proceedings/23/files/23ESV-000347.PDF
-    alternative TTC: https://www.sciencedirect.com/science/article/pii/S2590198222001889
-    """
-    
+
     def __init__(self, actor, args=None):
         super(ApproachingSensor, self).__init__(actor)
         
@@ -42,6 +33,11 @@ class ApproachingSensor(BasicControl):
         self.driving_state = []
         
         self.moving_object_ids = []
+        
+        if "direct_evaluation" in args.keys() and args["direct_evaluation"] == "True":
+            self.evaluation = True
+        else:
+            self.evaluation = False
         
         # just for debugging
         self.last_picture_made = 0
@@ -54,7 +50,9 @@ class ApproachingSensor(BasicControl):
         
         waypoint_list = []
         
-        if not args:  # only needed for scenario.center paper values
+        if not args:  
+            return waypoint_list
+            # only needed for scenario.center paper values
             mapping_dict = [
                 [[28.148611068725586, -6.5830078125, 0.0],  [77.48009490966797, -61.653717041015625, 0.0], 3088], # 3088
                 [[79.57760620117188, -59.0576057434082, 0.0],  [31.330720901489258, -5.196127891540527, 0.0], 3152], # 3152
@@ -81,15 +79,15 @@ class ApproachingSensor(BasicControl):
                     z = item[2]
                     self.env_scenario = ite[2]
             waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
-        else:
-            # regulary used
-            waypoint_list = []
-            for key, element in args.items():
-                if "x:" in element and "y:" in element and "z:" in element:
-                    x = float(element.split(",")[0].split(":")[1])
-                    y = -float(element.split(",")[1].split(":")[1])
-                    z = float(element.split(",")[2].split(":")[1])
-                    waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
+        
+        # regulary used
+        waypoint_list = []
+        for key, element in args.items():
+            if "x:" in element and "y:" in element and "z:" in element:
+                x = float(element.split(",")[0].split(":")[1])
+                y = -float(element.split(",")[1].split(":")[1])
+                z = float(element.split(",")[2].split(":")[1])
+                waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
         return waypoint_list
         
     def reset(self):
@@ -108,7 +106,7 @@ class ApproachingSensor(BasicControl):
         the given _target_speed.
         For further details see :func:`_set_new_velocity`
         """       
-        # try and except needed since vehicle may disappear
+        # try and except needed since vehicle may disappear - in this case, no update is needed
         try:
             ego_transform = self._actor.get_transform()
             ego_rotation = ego_transform.rotation
@@ -118,7 +116,7 @@ class ApproachingSensor(BasicControl):
             ego_velocity_abs = self._calc_velocity(ego_velocity)
         except :
             # save ttc function
-            if not self.is_plotted:
+            if not self.is_plotted and self.evaluation:
                 self._print_ttcs()
             return
         
@@ -143,8 +141,6 @@ class ApproachingSensor(BasicControl):
         ttc, ru_ttc = self._calc_advanced_ttx_metric(metric_type="ttc")
         thw, ru_thw = self._calc_advanced_ttx_metric(metric_type="thw")
 
-        if debug:
-            print("TTC: %.4f" % ttc + " | THW: %.4f" % thw + " | to ru (TTC): " + str(ru_ttc) + " | to ru (THW): " + str(ru_thw))
         self.ttc_values.append(ttc)
                 
         # simulate that randomly vehicle is not detected
@@ -316,12 +312,14 @@ class ApproachingSensor(BasicControl):
             
             # extrapolate state x seconds (according to velocity vector - without taking infrastructure into account)
             for index, timestep in enumerate(np.arange(0, considered_time_horizon_in_seconds, discretization)):
-                distance, can_be_reached = self._check_projected_distance(predicted_ego_state[index], ego_vel_abs=ego_velocity_abs, object_ru=object_ru, object_transform=object_transform, object_velocity=object_velocity, object_abs_velocity=object_velocity_abs, timestep=timestep, max_time=considered_time_horizon_in_seconds, project_object=project_object_state)
-                if not can_be_reached:
-                    break
-                if distance == 0:
-                    ttx_to_ru = timestep
-                    break
+                # check whether prediction exists for ego state (or is out of range)
+                if len(predicted_ego_state) > index:  # check if prediction is available or cannot be made (e.g. because of significant extrapolation)
+                    distance, can_be_reached = self._check_projected_distance(predicted_ego_state[index], ego_vel_abs=ego_velocity_abs, object_ru=object_ru, object_transform=object_transform, object_velocity=object_velocity, object_abs_velocity=object_velocity_abs, timestep=timestep, max_time=considered_time_horizon_in_seconds, project_object=project_object_state)
+                    if not can_be_reached:
+                        break
+                    if distance == 0:
+                        ttx_to_ru = timestep
+                        break
                 
             # check whether it is the smallest 
             if ttx_to_ru < ttx:
