@@ -405,10 +405,7 @@ class UpdateAllActorControls(AtomicBehavior):
             pass
 
         for actor_id in actor_dict:
-            try:
-                actor_dict[actor_id].run_step()
-            except IndexError as e:
-                print("WARNING: Actor with id " + str(actor_id) + " cannot be updated within this step. Skip actor. Error: " + str(e))
+            actor_dict[actor_id].run_step()
         return py_trees.common.Status.RUNNING
 
 
@@ -778,12 +775,16 @@ class ChangeActorWaypoints(AtomicBehavior):
         
         if additional_parameters and "arts" in additional_parameters.keys():
             if additional_parameters["arts"] == "True":
+                self.arts = True
                 if "check_for_road_user" in additional_parameters: 
                     self.prioritized_objects = additional_parameters["check_for_road_user"]
                 else:
                     self.prioritized_objects = []
-                self.arts = True
-        
+                if "check_for_prioritization_rule" in additional_parameters:
+                    self.check_for_prioritization_rules = additional_parameters["check_for_prioritization_rule"]
+                else:
+                    self.check_for_prioritization_rules = []
+
     def initialise(self):
         """
         Set _start_time and get (actor, controller) pair from Blackboard.
@@ -889,13 +890,18 @@ class ChangeActorWaypoints(AtomicBehavior):
             if current_waypoint_idx >= len(self._times):
                 return py_trees.common.Status.SUCCESS
             try:
-                if self.arts:
-                    self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-                else:
-                    self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-            except RuntimeError:
-                # only if actor is already destroyed
-                print("Faced runtime error updating speed for entity " + str(self._actor.id))
+                # check first if actor is available or already deleted - if deleted, no speed can be set anymore and no waypoints are needed
+                self._actor.get_velocity()
+            except:
+                return py_trees.common.Status.RUNNING
+            if self.arts:
+                self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+            else:
+                self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+            #except RuntimeError as e:
+            #    # if an actor is already destroyed, it cannot be called anymore
+            #    print(str(e))
+            #    print("Faced runtime error updating speed for entity " + str(self._actor.id))
                    
         return py_trees.common.Status.RUNNING
 
@@ -1220,6 +1226,22 @@ class ChangeActorWaypoints(AtomicBehavior):
             rect_1 = self._get_bb_shapely(predict_object_location, object_rotation, object_ru.bounding_box.extent.x, object_ru.bounding_box.extent.y)
             if rect_1.intersects(predicted_ego_state["bb"]):
                 approx_distance = 0
+                
+        # check rules whether it should be counted or not (only relevant, if collision occurs)
+        if approx_distance == 0:
+            rules_okay = True
+            if "left_before_right" in self.check_for_prioritization_rules:
+                if not self._rule_right_before_left(predicted_ego_state["rotation"], object_rotation):
+                    rules_okay = False
+            if "is_behind" in self.check_for_prioritization_rules:
+                if not self._rule_behind(predicted_ego_state["location"], predicted_ego_state["rotation"], 
+                                                    predict_object_location, object_rotation):
+                    rules_okay = False
+            # if rules are not fulfilled, has not to be considered
+            if not rules_okay:
+                approx_distance += 0.1
+                can_be_reached = False
+        
         return approx_distance, can_be_reached
     
     def _get_bb_shapely(self, location, rotation, length, width):
@@ -1301,6 +1323,40 @@ class ChangeActorWaypoints(AtomicBehavior):
                                             "location": location, "rotation": rotation})
         return predicted_ego_state
         
+    def _rule_right_before_left(self, ego_rotation, object_rotation):
+        """
+        check if colliding vehicle comes from left (then, no prioritization)
+        only this is checked and then it is set to True (no real checking of right before left rule)
+        """
+        diff_angle = self._difference_angle(object_rotation.yaw, ego_rotation.yaw)
+        
+        if 45 < diff_angle < 135:
+            return False
+        return True
+    
+    def _rule_behind(self, ego_location, ego_rotation, object_location, object_rotation):
+        """
+        check if the vehicle is behind or next to, but not in front.
+        only return "False" if vehicle is in front of the other
+        """
+        diff_angle = self._difference_angle(ego_rotation.yaw, object_rotation.yaw)
+        d_angle = 20
+        
+        # check if following
+        if diff_angle < d_angle or diff_angle > (360-d_angle):
+            # check if ego is in front of other vehicle
+            offset = np.array([(ego_location.x - object_location.x), (ego_location.y - object_location.y)])
+            ego_yaw_rad = ego_rotation.yaw/180*math.pi
+            direction_ego = np.array([np.cos(ego_yaw_rad), np.sin(ego_yaw_rad)])
+            if np.dot(offset, direction_ego) > 0:
+                return False
+        return True
+    
+    def _difference_angle(self, angle1, angle2):
+        """
+        returns difference angle (counter clockwise in degrees)
+        """
+        return (angle2-angle1) % 360
 
 
 class ChangeActorWaypointsToReachPosition(ChangeActorWaypoints):
@@ -4147,11 +4203,4 @@ class AddActor(AtomicBehavior):
         self._actor.set_target_velocity(self._init_velocity)
         self._actor.set_transform(self._spawn_point)
         new_status = py_trees.common.Status.SUCCESS
-        #try:
-        #    new_actor = CarlaDataProvider.request_new_actor(
-        #        self._actor_type, self._spawn_point, color=self._color)
-        #    if new_actor:
-        #        new_status = py_trees.common.Status.SUCCESS
-        #except:  # pylint: disable=bare-except
-        #    print("ActorSource unable to spawn actor")
         return new_status
