@@ -317,7 +317,6 @@ class CollisionTest(Criterion):
         Creates the sensor and callback"""
         world = CarlaDataProvider.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.collision')
-
         self._collision_sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self.actor)
         self._collision_sensor.listen(lambda event: self._count_collisions(event))
         super(CollisionTest, self).initialise()
@@ -494,7 +493,6 @@ class KeepLaneTest(Criterion):
 
         world = self.actor.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.lane_invasion')
-
         self._lane_sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self.actor)
         self._lane_sensor.listen(lambda event: self._count_lane_invasion(event))
 

@@ -10,6 +10,7 @@ ARG CI_REPOSITORY_URL
 USER root
 SHELL ["/bin/bash", "-c"]
 
+ARG CARLA_PATH=/opt/carla
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
 
@@ -36,14 +37,15 @@ RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 # Install scenario_runner
-COPY . $SCENARIO_RUNNER_API_PATH
-RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
+COPY . $SCENARIO_RUNNER_PATH
+RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt
 RUN pip3 install Flask
 
 # Download and extract artifacts
 RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
     unzip artifacts.zip && \
-    mv artifacts_ci/PythonAPI ${CARLA_API_PATH}
+    mkdir -p ${CARLA_PATH} && \
+    mv artifacts/PythonAPI ${CARLA_PATH}
 
 # Recursively install PythonAPI requirements, keep version of first occurrence
 RUN cat $(find ${CARLA_API_PATH} -type f -name "requirements.txt") > /tmp/requirements_raw.txt \

@@ -30,7 +30,6 @@ import time
 import json
 import pkg_resources
 
-
 import carla
 
 from srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration
@@ -46,6 +45,7 @@ from srunner.scenarioconfigs.osc2_scenario_configuration import OSC2ScenarioConf
 
 # Version of scenario_runner
 VERSION = '0.9.15'
+
 
 class ScenarioRunner(object):
 
@@ -281,7 +281,7 @@ class ScenarioRunner(object):
             print("All scenario tests were passed successfully!")
             return True
         else:
-            print("Scenario test was not successful")
+            print("Not all scenario tests were successful")
             if not (self._args.output or filename or junit_filename):
                 print("Please run with --output for further information")
             return False
@@ -344,9 +344,8 @@ class ScenarioRunner(object):
                         try:
                             data = xodr_file.read()
                         except OSError:
-                            print('file could not be readed.')
+                            print('OpenDRIVE file could not be readed.')
                             sys.exit()
-                print(town)
                 self.world = self.client.generate_opendrive_world(data)
             else:
                 self.world = self.client.load_world(town)
@@ -426,7 +425,7 @@ class ScenarioRunner(object):
                 scenario = OpenScenario(world=self.world,
                                         ego_vehicles=self.ego_vehicles,
                                         config=config,
-                                        config_file=self._args.openscenario,
+                                        config_file=self._args.openscenarios,
                                         timeout=100000)
             elif self._args.route:
                 scenario = RouteScenario(world=self.world,

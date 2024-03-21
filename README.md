@@ -1,5 +1,13 @@
 # Control Actor: *carla-scenario-runner*
 
+> [!IMPORTANT]
+> This repository is a fork of the [carla-scenario-runner](https://github.com/ika-rwth-aachen/carla-scenario-runner)! All initial and following modifications to the parent repository are documented in [IKA_CHANGELOG.md](./IKA_CHANGELOG.md).
+
+---
+---
+
+## IKA GitHub README
+
 <p align="left">
   <img src="https://img.shields.io/github/v/release/ika-rwth-aachen/carla-scenario-runner"/>
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/carla-scenario-runner"/>
