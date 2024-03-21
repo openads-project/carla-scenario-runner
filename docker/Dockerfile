@@ -1,60 +1,51 @@
 ARG UBUNTU_VERSION="22.04"
 
-############ PythonAPI artifacts ############
-FROM "ubuntu:${UBUNTU_VERSION}" as artifacts
+############ dependencies ############
+FROM "ubuntu:${UBUNTU_VERSION}"
 
-USER root
-SHELL ["/bin/bash", "-c"]
 ARG ARTIFACTS_URL
 ARG CI_JOB_TOKEN
 ARG CI_REPOSITORY_URL
 
-# Install curl + unzip
-RUN apt-get update && \
-    apt-get install -y \
-      curl \
-      unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Download and extract artifacts
-RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
-    unzip artifacts.zip
-
-ARG UBUNTU_VERSION
-
-############ dependencies ############
-FROM "ubuntu:${UBUNTU_VERSION}" as dependencies
-
 USER root
 SHELL ["/bin/bash", "-c"]
 
+ARG CARLA_PATH=/opt/carla
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
-ARG SCENARIO_RUNNER_API_PATH=/opt/carla/scenario_runner
-ARG ARTIFACTS_URL
-ARG CI_REPOSITORY_URL
+ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
 
 # Install essentials
 RUN apt-get update && \
     apt-get install -y \
+      build-essential \
+      curl \
       fontconfig \
+      git \
+      libgeos-dev \
+      libjpeg8 \
+      libomp5 \
+      libpng16-16 \
+      libtiff5 \
+      libxerces-c-dev \
+      unzip \
+      wget \
       x11-apps \
       python3-pip \
-      libomp5 \
-      libjpeg-turbo8 libtiff-dev \
-      libgeos-dev \
-      git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
 # Install scenario_runner
-COPY . $SCENARIO_RUNNER_API_PATH
-RUN pip3 install -r $SCENARIO_RUNNER_API_PATH/requirements.txt
+COPY . $SCENARIO_RUNNER_PATH
+RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt
 RUN pip3 install Flask
 
-# Copy over PythonAPI
-COPY --from=artifacts artifacts_ci/PythonAPI ${CARLA_API_PATH}
+# Download and extract artifacts
+RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
+    unzip artifacts.zip && \
+    mkdir -p ${CARLA_PATH} && \
+    mv artifacts/PythonAPI ${CARLA_PATH}
 
 # Recursively install PythonAPI requirements, keep version of first occurrence
 RUN cat $(find ${CARLA_API_PATH} -type f -name "requirements.txt") > /tmp/requirements_raw.txt \
@@ -68,16 +59,13 @@ RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/dist/$(ls $CARLA_
     echo "export CARLA_API_PATH=$CARLA_API_PATH" >> /setup_carla_env.sh; \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
 
-############ final ############
-FROM dependencies as final
-
 # Needed for (pygame based) scripts that have a GUI
 ENV SDL_VIDEODRIVER=x11
 
 USER root
 SHELL ["/bin/bash", "-c"]
 
-ARG WORKSPACE=/opt/carla/scenario_runner
+ARG WORKSPACE=${SCENARIO_RUNNER_PATH}
 ENV WORKSPACE=${WORKSPACE}
 WORKDIR ${WORKSPACE}
 
@@ -85,4 +73,4 @@ WORKDIR ${WORKSPACE}
 COPY ./docker/entrypoint.sh /
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-CMD [ "python3", "scenario_runner_server.py" ]
+CMD [ "python3", "scenario_runner.py", "--help" ]

@@ -30,7 +30,6 @@ import time
 import json
 import pkg_resources
 
-
 import carla
 
 from srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration
@@ -44,10 +43,9 @@ from srunner.tools.osc2_helper import OSC2Helper
 from srunner.scenarios.osc2_scenario import OSC2Scenario
 from srunner.scenarioconfigs.osc2_scenario_configuration import OSC2ScenarioConfiguration
 
-sys.path.append("/home/lutix/scenario_runner/srunner/osi/client")
-
 # Version of scenario_runner
-VERSION = '0.9.14'
+VERSION = '0.9.15'
+
 
 class ScenarioRunner(object):
 
@@ -95,8 +93,8 @@ class ScenarioRunner(object):
         self.client = carla.Client(args.host, int(args.port))
         self.client.set_timeout(self.client_timeout)
         dist = pkg_resources.get_distribution("carla")
-        if LooseVersion(dist.version) < LooseVersion('0.9.14'):
-            raise ImportError("CARLA version 0.9.14 or newer required. CARLA version found: {}".format(dist))
+        if LooseVersion(dist.version) < LooseVersion('0.9.15'):
+            raise ImportError("CARLA version 0.9.15 or newer required. CARLA version found: {}".format(dist))
 
         # Load agent if requested via command line args
         # If something goes wrong an exception will be thrown by importlib (ok here)
@@ -238,7 +236,10 @@ class ScenarioRunner(object):
 
             for i, _ in enumerate(self.ego_vehicles):
                 self.ego_vehicles[i].set_transform(ego_vehicles[i].transform)
-                CarlaDataProvider.register_actor(self.ego_vehicles[i])
+                self.ego_vehicles[i].set_target_velocity(carla.Vector3D())
+                self.ego_vehicles[i].set_target_angular_velocity(carla.Vector3D())
+                self.ego_vehicles[i].apply_control(carla.VehicleControl())
+                CarlaDataProvider.register_actor(self.ego_vehicles[i], ego_vehicles[i].transform)
 
         # set spectator view
         if(len(ego_vehicles) > 0):
@@ -277,10 +278,10 @@ class ScenarioRunner(object):
             filename = config_name + current_time + ".txt"
 
         if not self.manager.analyze_scenario(self._args.output, filename, junit_filename, json_filename):
-            print("Scenario test was passed successfully!")
+            print("All scenario tests were passed successfully!")
             return True
         else:
-            print("Scenario test was not successful")
+            print("Not all scenario tests were successful")
             if not (self._args.output or filename or junit_filename):
                 print("Please run with --output for further information")
             return False
@@ -343,9 +344,8 @@ class ScenarioRunner(object):
                         try:
                             data = xodr_file.read()
                         except OSError:
-                            print('file could not be readed.')
+                            print('OpenDRIVE file could not be readed.')
                             sys.exit()
-                print(town)
                 self.world = self.client.generate_opendrive_world(data)
             else:
                 self.world = self.client.load_world(town)
@@ -425,7 +425,7 @@ class ScenarioRunner(object):
                 scenario = OpenScenario(world=self.world,
                                         ego_vehicles=self.ego_vehicles,
                                         config=config,
-                                        config_file=self._args.openscenario,
+                                        config_file=self._args.openscenarios,
                                         timeout=100000)
             elif self._args.route:
                 scenario = RouteScenario(world=self.world,
@@ -439,11 +439,11 @@ class ScenarioRunner(object):
                                         timeout=100000)
             else:
                 scenario_class = self._get_scenario_class_or_fail(config.type)
-                scenario = scenario_class(self.world,
-                                          self.ego_vehicles,
-                                          config,
-                                          self._args.randomize,
-                                          self._args.debug)
+                scenario = scenario_class(world=self.world,
+                                          ego_vehicles=self.ego_vehicles,
+                                          config=config,
+                                          randomize=self._args.randomize,
+                                          debug_mode=self._args.debug)
         except Exception as exception:                  # pylint: disable=broad-except
             print("The scenario cannot be loaded")
             traceback.print_exc()
@@ -463,15 +463,13 @@ class ScenarioRunner(object):
             self.manager.run_scenario()
 
             # Provide outputs if required
-            success = self._analyze_scenario(config)
+            result = self._analyze_scenario(config)
 
             # Remove all actors, stop the recorder and save all criterias (if needed)
             scenario.remove_all_actors()
             if self._args.record:
                 self.client.stop_recorder()
-                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name, success)
-
-            result = True
+                self._record_criteria(self.manager.scenario.get_criteria(), recorder_name, result)
 
         except Exception as e:              # pylint: disable=broad-except
             traceback.print_exc()
@@ -510,15 +508,8 @@ class ScenarioRunner(object):
         """
         result = False
 
-        if self._args.route:
-            routes = self._args.route[0]
-            scenario_file = self._args.route[1]
-            single_route = None
-            if len(self._args.route) > 2:
-                single_route = self._args.route[2]
-
         # retrieve routes
-        route_configurations = RouteParser.parse_routes_file(routes, scenario_file, single_route)
+        route_configurations = RouteParser.parse_routes_file(self._args.route, self._args.route_id)
 
         for config in route_configurations:
             for _ in range(self._args.repetitions):
@@ -616,11 +607,10 @@ def main():
     parser.add_argument('--openscenarioDirectory', help='Provide a folder with OpenSCENARIO definition(s)')
     parser.add_argument('--openscenarioparams', help='Overwrited for OpenSCENARIO ParameterDeclaration')
     parser.add_argument('--openscenario2', help='Provide an openscenario2 definition')
+    parser.add_argument('--route', help='Run a route as a scenario', type=str)
+    parser.add_argument('--route-id', help='Run a specific route inside that \'route\' file', default='', type=str)
     parser.add_argument(
-        '--route', help='Run a route as a scenario (input: (route_file,scenario_file,[route id]))', nargs='+', type=str)
-
-    parser.add_argument(
-        '--agent', help="Agent used to execute the scenario. Currently only compatible with route-based scenarios.")
+        '--agent', help="Agent used to execute the route. Not compatible with non-route-based scenarios.")
     parser.add_argument('--agentConfig', type=str, help="Path to Agent's configuration file", default="")
 
     parser.add_argument('--output', action="store_true", help='Provide results on stdout')

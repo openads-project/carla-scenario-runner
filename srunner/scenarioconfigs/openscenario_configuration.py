@@ -34,6 +34,8 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
 
     def __init__(self, filename, client, custom_params):
 
+        super(OpenScenarioConfiguration, self).__init__()
+
         self.xml_tree = ET.parse(filename)
         self.filename = filename
         self._custom_params = custom_params if custom_params is not None else {}
@@ -205,13 +207,13 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
             if ".xodr" in self.town:
                 with open(self.town, 'r', encoding='utf-8') as od_file:
                     data = od_file.read()
-                index = data.find('<OpenDRIVE>')
+                index = data.find('<OpenDRIVE')
                 data = data[index:]
 
                 old_map = ""
                 if wmap is not None:
                     old_map = wmap.to_opendrive()
-                    index = old_map.find('<OpenDRIVE>')
+                    index = old_map.find('<OpenDRIVE')
                     old_map = old_map[index:]
 
                 if data != old_map:

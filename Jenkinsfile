@@ -152,7 +152,7 @@ pipeline
                     agent { label "secondary && ubuntu && gpu && sr" }
                         steps
                         {
-                            sh 'DISPLAY= ./CarlaUE4.sh -nosound > CarlaUE4.log&'
+                            sh 'DISPLAY= ./CarlaUE4.sh -opengl -nosound > CarlaUE4.log&'
                         sleep 10
                             script
                             {
