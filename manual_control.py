@@ -135,7 +135,7 @@ class World(object):
         self.recording_enabled = False
         self.recording_start = 0
 
-    def restart(self, args):
+    def restart(self,args):
 
         self.player_max_speed = 1.589
         self.player_max_speed_fast = 3.713

@@ -14,9 +14,7 @@ import math
 import carla
 import numpy as np
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
-#from srunner.scenariomanager.actorcontrols.visualizer import Visualizer
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-from srunner.scenariomanager.timer import GameTime
 
 import matplotlib.pyplot as plt
 import time
@@ -217,9 +215,6 @@ class ApproachingSensor(BasicControl):
                     distance = math.sqrt((ego_location.x-obj_location.x)**2+(ego_location.y-obj_location.y)**2+(ego_location.z-obj_location.z)**2)
                     delta_velocities = math.sqrt((ego_velocity.x-obj_velocity.x)**2+(ego_velocity.y-obj_velocity.y)**2+(ego_velocity.z-obj_velocity.z)**2)
                     ttc_opt = (distance) / (delta_velocities)
-                    # print("TTC: %.4f" % ttc_opt + " | dist: %.4f" % distance + " | delata_velocities: %.4f" % delta_velocities)
-                    #if ttc_opt < ttc:
-                    #    min_with_type = actor.type_id
                     ttc = min(ttc, ttc_opt)
                     considered_vehicles += 1
         return ttc
@@ -256,8 +251,6 @@ class ApproachingSensor(BasicControl):
             object_ru = object_ru_item[1]
             object_ru_id = object_ru_item[0]
             object_transform = object_ru.get_transform()
-            object_bb = object_ru.bounding_box
-            object_location = object_transform.location
             object_velocity = object_ru.get_velocity()
             object_velocity_abs = self._calc_velocity(object_velocity)
             

@@ -5106,12 +5106,18 @@ class AddActor(AtomicBehavior):
         self._init_velocity = init_velocity
 
     def update(self):
+        """
+        not working properly since spawning does not work connecting carla and scenario runner entities. 
+        Important interplay with srunner/scenarios/open_scenario.py spawning all vehicles outside of the map at scenario start
+        """
         new_status = py_trees.common.Status.RUNNING
         self._actor.set_target_velocity(self._init_velocity)
         self._actor.set_transform(self._spawn_point)
         new_status = py_trees.common.Status.SUCCESS
         return new_status
-        """try:
+        """
+        original code
+        try:
             new_actor = CarlaDataProvider.request_new_actor(
                 self._actor_type, self._spawn_point, color=self._color)
             if new_actor:
