@@ -24,7 +24,7 @@ import carla
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.weather_sim import Weather
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLightStateSetter,
-                                                                      ActorDestroy, DeleteActor,
+                                                                      ActorDestroy,
                                                                       AddActor,
                                                                       ActorTransformSetterToOSCPosition,
                                                                       RunScript,
@@ -40,7 +40,6 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLig
                                                                       KeepLongitudinalGap,
                                                                       Idle,
                                                                       ChangeParameter, ChangeLateralDistance,
-                                                                      ActorDestroy,
                                                                       TrafficLightControllerSetter)
 # pylint: disable=unused-import
 # For the following includes the pylint check is disabled, as these are accessed via globals()

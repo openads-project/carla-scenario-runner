@@ -1988,38 +1988,6 @@ class ActorTransformSetterToOSCPosition(AtomicBehavior):
         return new_status
 
 
-class DeleteActor(AtomicBehavior):
-    """
-    This class contains an atomic entity deletion behavior. The controlled traffic participant is deleted from map
-    
-    Important parameters:
-   - actor: CARLA actor to execute the behavior
-    - actor_list: List of all CARLA actors TODO
-    """
-    def __init__(self, actor, actor_list=None, name="DeleteActor"):
-        super(DeleteActor, self).__init__(name, actor)
-        self.actor_list = actor_list
-        self.actor = actor
-        
-    def initialise(self): 
-        super(DeleteActor, self).initialise()
-        
-    def update(self):
-        """
-        delete actor and update list are only things to do
-        """
-        """# TODO: disable planner before destroy
-        new_status = py_trees.common.Status.RUNNING
-        self.actor_list.remove(self.actor)
-        self.actor.destroy()"""
-        transform = self.actor.get_transform()
-        transform.location.z -= 10.0 # TODO change back
-        self.actor.set_transform(transform)
-        
-        new_status = py_trees.common.Status.SUCCESS
-        return new_status
-
-
 class AccelerateToVelocity(AtomicBehavior):
 
     """
