@@ -641,7 +641,7 @@ def main():
         print(*ScenarioConfigurationParser.get_list_of_scenarios(arguments.configFile), sep='\n')
         return 1
 
-    if not arguments.scenario and not arguments.openscenario and not arguments.route and not arguments.openscenario2:
+    if not arguments.scenario and not arguments.openscenario and not arguments.route and not arguments.openscenarioDirectory and not arguments.openscenario2:
         print("Please specify either a scenario or use the route mode\n\n")
         parser.print_help(sys.stdout)
         return 1

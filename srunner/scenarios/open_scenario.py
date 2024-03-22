@@ -232,8 +232,6 @@ class OpenScenario(BasicScenario):
 
         weather_update = ChangeWeather(
             OpenScenarioParser.get_weather_from_env_action(self.config.init, self.config.catalogs))
-        weather_update._weather.carla_weather.sun_azimuth_angle=70.0
-        weather_update._weather.carla_weather.sun_altitude_angle=70.0
         road_friction = ChangeRoadFriction(
             OpenScenarioParser.get_friction_from_env_action(self.config.init, self.config.catalogs))
         env_behavior.add_child(oneshot_with_check(variable_name="InitialWeather", behaviour=weather_update))
@@ -246,8 +244,6 @@ class OpenScenario(BasicScenario):
         init_behavior = py_trees.composites.Parallel(
             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="InitBehaviour")
         
-        actor_list = self.other_actors + self.ego_vehicles + [None]
-
         actor_list = self.other_actors + self.ego_vehicles + [None]
 
         for actor in self.config.other_actors + self.config.ego_vehicles:
@@ -614,7 +610,7 @@ class OpenScenario(BasicScenario):
                             if actor.rolename == entity_ref:
                                 config.other_actors.remove(actor)
 
-            # TODO: use correct spawn points at correct time (so dont request all road users here, but in spawn actor - but then it has to be made sure that it is attached to the list of new actors)
+            # workaround since new spawned actors cannot be controlled in actual version - so spawn all vehicles outside relevant map
             for i, other_actor in enumerate(config.other_actors):
                 # check if spawned correctly or at 0,0,0:
                 if abs(other_actor.transform.location.x) < 5.0 and abs(other_actor.transform.location.y) < 5.0:
