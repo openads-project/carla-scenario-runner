@@ -28,7 +28,6 @@ from numpy import random
 import py_trees
 from py_trees.blackboard import Blackboard
 import networkx
-from loguru import logger
 
 from shapely import Polygon
 
@@ -3592,7 +3591,24 @@ class AddActor(AtomicBehavior):
     A parallel termination behavior has to be used.
     """
 
-    def __init__(self, actor_type, transform, color=None, name="SpawnActor"):
+    def __init__(self, actor, actor_type, transform, init_velocity=carla.Vector3D(), color=None, name="SpawnActor"):
+        """
+        Setup class members
+        """
+        super(AddActor, self).__init__(name, actor)
+        self._actor_type = actor_type
+        self._actor = actor
+        self._spawn_point = transform
+        self._color = color
+        self._init_velocity = init_velocity
+
+    def update(self):
+        new_status = py_trees.common.Status.RUNNING
+        self._actor.set_target_velocity(self._init_velocity)
+        self._actor.set_transform(self._spawn_point)
+        new_status = py_trees.common.Status.SUCCESS
+        return new_status
+    '''def __init__(self, actor, actor_type, transform, color=None, name="SpawnActor"):
         """
         Setup class members
         """
@@ -3611,7 +3627,7 @@ class AddActor(AtomicBehavior):
             new_status = py_trees.common.Status.SUCCESS
         except:  # pylint: disable=bare-except
             print("ActorSource unable to spawn actor")
-        return new_status
+        return new_status'''
 
 
 class ActorTransformSetter(AtomicBehavior):
@@ -5131,6 +5147,7 @@ class AddActor(AtomicBehavior):
         self._actor.set_target_velocity(self._init_velocity)
         self._actor.set_transform(self._spawn_point)
         new_status = py_trees.common.Status.SUCCESS
+        return new_status
         """try:
             new_actor = CarlaDataProvider.request_new_actor(
                 self._actor_type, self._spawn_point, color=self._color)
