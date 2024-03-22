@@ -897,11 +897,7 @@ class ChangeActorWaypoints(AtomicBehavior):
                 self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
             else:
                 self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-            #except RuntimeError as e:
-            #    # if an actor is already destroyed, it cannot be called anymore
-            #    print(str(e))
-            #    print("Faced runtime error updating speed for entity " + str(self._actor.id))
-                   
+            
         return py_trees.common.Status.RUNNING
 
     def _update_speed_rts(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
@@ -973,14 +969,10 @@ class ChangeActorWaypoints(AtomicBehavior):
                 # case if road user is not at envelope, but somewhere outside (teleport needed, so way to long)
                 actor.update_target_speed(0)
                 return
-            
             self._actor.set_target_velocity(velocity_vector)
             
             # set slip = 0 (otherwise drifts occur)
-            if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
-                transform = self._actor.get_transform()
-                transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
-                self._actor.set_transform(transform)
+            self._control_direction(velocity_vector)
         else:
             # set target speed, according to physics/ controller smoothly. 
             # Caution: this seems to be really inaccurate and not usefull for densed sampled trajectories
@@ -1085,13 +1077,16 @@ class ChangeActorWaypoints(AtomicBehavior):
             return
         
         self._actor.set_target_velocity(velocity_vector)
+        self._control_direction(velocity_vector)
         
+        return
+
+    def _control_direction(self, velocity_vector):
         # set slip = 0 (otherwise drifts occur)
         if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
             transform = self._actor.get_transform()
             transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
-            self._actor.set_transform(transform)    
-        
+            self._actor.set_transform(transform) 
         return
 
     def _direct_distance(self, location_1, location_2):

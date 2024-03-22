@@ -18,6 +18,9 @@ from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.timer import GameTime
 
+import matplotlib.pyplot as plt
+import time
+
 from shapely.geometry import Polygon
 
 
@@ -49,40 +52,8 @@ class ApproachingSensor(BasicControl):
         """
         
         waypoint_list = []
-        
-        if not args:  
-            return waypoint_list
-            # only needed for scenario.center paper values
-            mapping_dict = [
-                [[28.148611068725586, -6.5830078125, 0.0],  [77.48009490966797, -61.653717041015625, 0.0], 3088], # 3088
-                [[79.57760620117188, -59.0576057434082, 0.0],  [31.330720901489258, -5.196127891540527, 0.0], 3152], # 3152
-                [[33.343958892822266, -12.1366697082519531, 0.0],  [75.37846374511719, -59.6007080078125, 0.0], 3270], # 3270 ## [[43.553958892822266, -15.981697082519531, 0.0],  [37.591129302978516, -9.166067123413086, 0.0], 3270], # 3270
-                [[77.84910583496094, -56.36042785644531, 0.0], [65.90361022949219, -20.991188049316406, 0.0], 3527], # 3527
-                [[79.2093205871582, -56.09857383728027, 0.0], [25.0536, -7.9300, 0.0], 3768], # 3768
-                [[92.52066040039062, -19.832069396972656, 0.0], [42.95334243774414, -14.271529197692871, 0.0], 3885], # 3885
-                [[80.72096252441406, -58.309967041015625, 0.0], [32.951080322265625, -4.384818077087402, 0.0], 4680], # 4680
-                [[14.523883819580078, -38.649288177490234, 0.0], [91.79503631591797, -24.81290054321289, 0.0], 4986], # 4986
-                [[14.569354057312012, -38.85811996459961, 0.0], [90.7804183959961, -22.869470596313477, 0.0], 5288], # 5288
-                [[94.23802947998047, -19.998939514160156, 0.0], [16.86525535583496, -37.99388885498047, 0.0], 5860], # 5860
-                [[16.640245666503906, -38.69466018676758, 0.0], [93.74411010742188, -22.414819717407227, 0.0], 6177], # 6177
-                [[17.488183975219727, -38.21944808959961, 0.0], [94.39863586425781, -21.9507999420166, 0.0], 6652] # 6652
-            ]
             
-            for ite in mapping_dict:
-                key = ite[0]
-                item = ite[1]
-                #if (round(key[0], 1) == round(al.x, 1) and 
-                #    round(key[1], 1) == -round(al.y, 1)):
-                if (abs(key[0]-al.x) < 0.15) and (abs(key[1]+al.y) < 0.15):
-                    x = item[0]
-                    y = -item[1]
-                    z = item[2]
-                    self.env_scenario = ite[2]
-            waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
-        
-        # regulary used
-        waypoint_list = []
-        for key, element in args.items():
+        for _, element in args.items():
             if "x:" in element and "y:" in element and "z:" in element:
                 x = float(element.split(",")[0].split(":")[1])
                 y = -float(element.split(",")[1].split(":")[1])
@@ -109,7 +80,6 @@ class ApproachingSensor(BasicControl):
         # try and except needed since vehicle may disappear - in this case, no update is needed
         try:
             ego_transform = self._actor.get_transform()
-            ego_rotation = ego_transform.rotation
             ego_location = ego_transform.location
             ego_location.z = ego_location.z if ego_location.z < 1.0 else 0.2 
             ego_velocity = self._actor.get_velocity()
@@ -166,8 +136,6 @@ class ApproachingSensor(BasicControl):
         print ttc values over time including minimum values
         """
         print("Min ttc: %.4f" % min(self.ttc_values[15:]))
-        import matplotlib.pyplot as plt
-        import time
         
         if not hasattr(self, "env_scenario"):
             self.env_scenario = "na"

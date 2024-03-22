@@ -106,7 +106,7 @@
               <AssignControllerAction>
                 <Controller name="HeroAgent">
                   <Properties>
-                    <Property name="module" value="external_control.py"/>
+                    <Property name="module" value="external_control"/>
                   </Properties>
                 </Controller>
               </AssignControllerAction>
