@@ -40,7 +40,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLig
                                                                       KeepLongitudinalGap,
                                                                       Idle,
                                                                       ChangeParameter, ChangeLateralDistance,
-                                                                      ActorDestroy, AddActor,
+                                                                      ActorDestroy,
                                                                       TrafficLightControllerSetter)
 # pylint: disable=unused-import
 # For the following includes the pylint check is disabled, as these are accessed via globals()
@@ -1311,32 +1311,6 @@ class OpenScenarioParser(object):
                     if entity_ref_actor is None:
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
                     atomic = AddActor(actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
-                    """elif global_action.find('EntityAction') is not None:
-                entity_action = global_action.find('EntityAction')
-                entity_ref = entity_action.attrib.get('entityRef')
-                if entity_action.find('DeleteEntityAction') is not None:
-                    entity_ref_actor = None
-                    for _actor in actor_list:
-                        if _actor is not None and 'role_name' in _actor.attributes:
-                            if entity_ref == _actor.attributes['role_name']:
-                                entity_ref_actor = _actor
-                                break
-                    if entity_ref_actor is None:
-                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = DeleteActor(entity_ref_actor)  # ActorDestroy
-                elif entity_action.find('AddEntityAction') is not None:
-                    position = entity_action.find('AddEntityAction').find("Position")
-                    actor_transform = OpenScenarioParser.convert_position_to_transform(position)
-                    entity_ref_actor = None
-                    for _actor in config.other_actors:
-                        if _actor.rolename == entity_ref:
-                            entity_ref_actor = _actor
-                            break
-                    if entity_ref_actor is None:
-                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = AddActor(_actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
-                else:
-                    raise NotImplementedError("Requested EntityAction is not yet supported")"""
             else:
                 raise NotImplementedError("Global actions are not yet supported")
         elif action.find('UserDefinedAction') is not None:
