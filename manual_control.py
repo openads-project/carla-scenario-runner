@@ -137,10 +137,6 @@ class World(object):
 
     def restart(self, args):
 
-        if self.restarted:
-            return
-        self.restarted = True
-
         self.player_max_speed = 1.589
         self.player_max_speed_fast = 3.713
 
