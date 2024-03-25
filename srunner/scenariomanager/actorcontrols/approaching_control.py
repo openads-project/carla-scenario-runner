@@ -12,20 +12,22 @@ There is no sensor included, but ground trouth data is used
 from distutils.util import strtobool
 import math
 import carla
+import matplotlib.pyplot as plt
 import numpy as np
+from shapely.geometry import Polygon
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-
-import matplotlib.pyplot as plt
 import time
 
-from shapely.geometry import Polygon
 
-
-class ApproachingSensor(BasicControl):
+class ApproachingControl(BasicControl):
 
     def __init__(self, actor, args=None):
-        super(ApproachingSensor, self).__init__(actor)
+        """_summary_
+        actor: scenario runner actor
+        args: further args (may include config information all starting with "config_")
+        """
+        super(ApproachingControl, self).__init__(actor)
         
         self.ttc_values = []
         self.target_waypoints = self.get_target_waypoints(args, actor.get_transform().location) # via location only for scenario.center paper scenarios
@@ -40,13 +42,54 @@ class ApproachingSensor(BasicControl):
         else:
             self.evaluation = False
         
+        self.config = self._get_config(args)
+        
         # just for debugging
         self.last_picture_made = 0
+        
+    def _get_config(self, args):
+        """
+        create config for controller
+        """
+        
+        # set default config 
+        config = {
+            "target_velocity": 20.0,
+            "lookahead_points": 10,
+            "reset_z_cooridinate": True,
+            "detection_percentage": 100,
+            "ttc_threshold": 1.5,
+            "thw_threshold": 0.5
+        }
+        
+        # automated casting and rewriting values from config if necessary - overwriting values from args
+        for arg_key in list(args.keys()):
+            if "config" in arg_key:
+                config_name = arg_key.split("_")[1]
+                actual_type = None
+                if config_name in self.config.keys():
+                    actual_type = type(config[config_name])
+                config[config_name] = args[arg_key]
+                try:
+                    if actual_type == int:
+                        config[config_name] = int(args[arg_key])
+                    elif actual_type == float: 
+                        config[config_name] = float(args[arg_key])
+                    elif actual_type == bool:
+                        if args[arg_key] == "True":
+                            config[config_name] = True
+                        else:
+                            config[config_name] = False
+                except ValueError:
+                    print("ERROR: Invalid entry casting config for key '" + str(arg_key) + "' in approaching control. Use default instead.")
+        return config
         
     def get_target_waypoints(self, args, al=None):
         """
         function to get waypoints from given arguments from controller
-        waypoints are set as properties. each waypoint is one line. format: "x:1.234,y:3.345,z:6.423"
+        waypoints are set as properties. 
+        format for a waypoint in openscenario file in "assigncontroller" according to example (srunner/examples/scenariocenter/inD_replay_to_sim_frankenburg_with_controller.xosc):
+        <Property name="waypoint_{number}" value="x:1.1234,y:2.345,z:0.0,h:3.141592654,p:0.0,r:0.0" />
         """
         
         waypoint_list = []
@@ -74,11 +117,15 @@ class ApproachingSensor(BasicControl):
         If _waypoints is empty, the vehicle moves in its current direction with
         the given _target_speed.
         For further details see :func:`_set_new_velocity`
+        
+        target_velocity: velocity of road user to be reached if uninfluenced
+        lookahead_points: lookahead to smooth trajectory points/ target
         """       
         # try and except needed since vehicle may disappear - in this case, no update is needed
         try:
             ego_transform = self._actor.get_transform()
             ego_location = ego_transform.location
+            # if ego location is irrational high, put to reasonable 0.2m (0 may cause collisions)
             ego_location.z = ego_location.z if ego_location.z < 1.0 else 0.2 
             ego_velocity = self._actor.get_velocity()
             ego_velocity_abs = self._calc_velocity(ego_velocity)
@@ -88,9 +135,7 @@ class ApproachingSensor(BasicControl):
                 self._print_ttcs()
             return
         
-        target_waypoint = self._calculate_actual_target_waypoint(ego_location, lookahead_points=10)
-        target_velocity = 70.0/3.6
-        
+        target_waypoint = self._calculate_actual_target_waypoint(ego_location, lookahead_points=self.config["lookahead_points"])
         
         """ set rotation and velocity direction"""
         # set rotation
@@ -113,16 +158,16 @@ class ApproachingSensor(BasicControl):
                 
         # simulate that randomly vehicle is not detected
         import random
-        if random.randint(0, 100) > 0:
+        if random.randint(0, 100) < self.config["detection_percentage"]:
             is_detected = True
         else:
             is_detected = False
                 
-        if ((ttc < 1.5 and thw < 1.5) or thw < 0.5) and is_detected:
+        if ((ttc < self.config["ttc_threshold"] and thw < self.config["ttc_threshold"]) or thw < self.config["thw_threshold"]) and is_detected:
             self._actor.apply_control(carla.VehicleControl(throttle = 0, brake = 1.0))
             self.driving_state.append(0)
         else:
-            if ego_velocity_abs > target_velocity:
+            if ego_velocity_abs > self.config["target_velocity"]:
                 self._actor.apply_control(carla.VehicleControl(throttle = 0, brake = 0))
                 self.driving_state.append(0.5)
             else:
@@ -131,9 +176,11 @@ class ApproachingSensor(BasicControl):
             
     def _print_ttcs(self, path="/tmp/scenario-center_simulations/"):
         """
-        print ttc values over time including minimum values
+        print ttc values over time (last x timesteps) including minimum values
         """
-        print("Min ttc: %.4f" % min(self.ttc_values[15:]))
+        neglect_first_timesteps = 15  # due to initial inaccuracies
+        
+        min_ttc = min(self.ttc_values[neglect_first_timesteps:])
         
         if not hasattr(self, "env_scenario"):
             self.env_scenario = "na"
@@ -141,10 +188,11 @@ class ApproachingSensor(BasicControl):
         fig, ax = plt.subplots(1)
         ax.plot(self.ttc_values)
         ax.plot(self.driving_state)
-        ax.set_title(str(min(self.ttc_values[15:])))
+        ax.set_title("Final ttc: %.4f" % min_ttc)
         fig.savefig(path + "plot_ttc_env" + str(self.env_scenario) + "_" + str(time.time())+".png")
-        print("SAVED DATA for env " + str(self.env_scenario))
         self.is_plotted = True
+        
+        print("SAVED DATA for env " + str(self.env_scenario) + ". Min ttc: %.4f" % min_ttc)
         
     def _calc_velocity(self, vel):
             return math.sqrt(vel.x**2 + vel.y**2 + vel.z**2)
