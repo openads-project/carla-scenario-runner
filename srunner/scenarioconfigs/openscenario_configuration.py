@@ -79,13 +79,9 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         
     def _get_xsd_file(self):
         """
-        get xsd file depending on version
+        get xsd file dependend on version
         """
-        if self.version["revMajor"] == "1" and self.version["revMinor"] == "0":
-            xsd_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO_1-0.xsd")
-        else:
-            xsd_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO_1-1.xsd")
-        return xsd_file
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO_" + str(self.version["revMajor"]) + "-"+ str(self.version["revMinor"]) + ".xsd")
 
     def _validate_openscenario_configuration(self):
         """
