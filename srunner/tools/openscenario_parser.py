@@ -484,8 +484,8 @@ class OpenScenarioParser(object):
         sun = weather.find("Sun")
 
         carla_weather = carla.WeatherParameters()
-        carla_weather.sun_azimuth_angle = math.degrees(float(sun.attrib.get('azimuth', 70)))
-        carla_weather.sun_altitude_angle = math.degrees(float(sun.attrib.get('elevation', 70)))
+        carla_weather.sun_azimuth_angle = math.degrees(float(sun.attrib.get('azimuth', 0)))
+        carla_weather.sun_altitude_angle = math.degrees(float(sun.attrib.get('elevation', 0)))
         carla_weather.cloudiness = 100 - float(sun.attrib.get('intensity', 0)) * 100
         fog = weather.find("Fog")
         carla_weather.fog_distance = float(fog.attrib.get('visualRange', 'inf'))
