@@ -468,11 +468,7 @@ class OpenScenarioParser(object):
             node = xml_tree.findall('.//EnvironmentAction')[0]
             set_environment = next(node.iter("EnvironmentAction"))
         else:
-            # set default parameters to daylight
-            weather_parameters = carla.WeatherParameters()
-            weather_parameters.sun_azimuth_angle=70.0
-            weather_parameters.sun_altitude_angle=70.0
-            return Weather(weather_parameters)
+            return Weather(carla.WeatherParameters.ClearNoon)
 
         if sum(1 for _ in set_environment.iter("Weather")) != 0:
             environment = set_environment.find("Environment")

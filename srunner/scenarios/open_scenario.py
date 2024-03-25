@@ -243,7 +243,7 @@ class OpenScenario(BasicScenario):
 
         init_behavior = py_trees.composites.Parallel(
             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="InitBehaviour")
-        
+
         actor_list = self.other_actors + self.ego_vehicles + [None]
 
         for actor in self.config.other_actors + self.config.ego_vehicles:
@@ -610,12 +610,6 @@ class OpenScenario(BasicScenario):
                             if actor.rolename == entity_ref:
                                 config.other_actors.remove(actor)
 
-            # workaround since new spawned actors cannot be controlled in actual version - so spawn all vehicles outside relevant map
-            for i, other_actor in enumerate(config.other_actors):
-                # check if spawned correctly or at 0,0,0:
-                if abs(other_actor.transform.location.x) < 5.0 and abs(other_actor.transform.location.y) < 5.0:
-                    other_actor.transform.location.x = 1000.0 + 10.0*i
-                    
             new_actors = CarlaDataProvider.request_new_actors(config.other_actors)
             if not new_actors:
                 raise Exception("Error: Unable to add actors")
