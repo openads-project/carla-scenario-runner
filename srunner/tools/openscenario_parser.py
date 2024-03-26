@@ -634,14 +634,15 @@ class OpenScenarioParser(object):
             
             # get available parameter declarations for trajectory
             parameter_declarations = trajectory.find("ParameterDeclarations")
-            for parameter_declaration in parameter_declarations.findall("ParameterDeclaration"):
-                if parameter_declaration.get("name") in ["check_for_road_user", "check_for_prioritization_rule"]:
-                    if parameter_declaration.get("name") in parameters.keys():
-                        parameters[parameter_declaration.get("name")].append(parameter_declaration.get("value"))
+            if parameter_declarations is not None:
+                for parameter_declaration in parameter_declarations.findall("ParameterDeclaration"):
+                    if parameter_declaration.get("name") in ["check_for_road_user", "check_for_prioritization_rule"]:
+                        if parameter_declaration.get("name") in parameters.keys():
+                            parameters[parameter_declaration.get("name")].append(parameter_declaration.get("value"))
+                        else:
+                            parameters[parameter_declaration.get("name")] = [parameter_declaration.get("value")]
                     else:
-                        parameters[parameter_declaration.get("name")] = [parameter_declaration.get("value")]
-                else:
-                    parameters[parameter_declaration.get("name")] = parameter_declaration.get("value")
+                        parameters[parameter_declaration.get("name")] = parameter_declaration.get("value")
             
         else:
             raise AttributeError("No waypoints has been set")
