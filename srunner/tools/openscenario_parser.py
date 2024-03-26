@@ -24,6 +24,8 @@ import carla
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.weather_sim import Weather
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLightStateSetter,
+                                                                      ActorDestroy,
+                                                                      AddActor,
                                                                       ActorTransformSetterToOSCPosition,
                                                                       RunScript,
                                                                       ChangeWeather,
@@ -38,7 +40,6 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLig
                                                                       KeepLongitudinalGap,
                                                                       Idle,
                                                                       ChangeParameter, ChangeLateralDistance,
-                                                                      ActorDestroy, AddActor,
                                                                       TrafficLightControllerSetter)
 # pylint: disable=unused-import
 # For the following includes the pylint check is disabled, as these are accessed via globals()
@@ -467,7 +468,7 @@ class OpenScenarioParser(object):
             node = xml_tree.findall('.//EnvironmentAction')[0]
             set_environment = next(node.iter("EnvironmentAction"))
         else:
-            return Weather(carla.WeatherParameters())
+            return Weather(carla.WeatherParameters.ClearNoon)
 
         if sum(1 for _ in set_environment.iter("Weather")) != 0:
             environment = set_environment.find("Environment")
@@ -582,7 +583,7 @@ class OpenScenarioParser(object):
         return waypoints
 
     @staticmethod
-    def get_trajectory(xml_tree, catalogs):
+    def get_trajectory(xml_tree, catalogs, version):
         """
         Extract the trajectory from the OSC XML or a catalog
 
@@ -590,6 +591,7 @@ class OpenScenarioParser(object):
             xml_tree: Containing the trajectory information,
                 or the reference to the catalog it is defined in.
             catalogs: XML Catalogs that could contain the trajectory
+            version: version of the OpenSCENARIO file
 
         returns:
            waypoints: List of trajectory waypoints and times.
@@ -598,6 +600,15 @@ class OpenScenarioParser(object):
         trajectory = None
         waypoints = []
         times = []
+        parameters = {}
+
+        # add layer for version 1.1 (afterwards 1.0 doing okay)
+        # Catalogue reference not included yet
+        if version["revMinor"] == "1":
+            if xml_tree.find("TrajectoryRef") is not None:
+                xml_tree = xml_tree.find("TrajectoryRef")
+            else:
+                raise AttributeError("Unkown private FollowTrajectory action")
 
         if xml_tree.find('Trajectory') is not None:
             trajectory = xml_tree.find('Trajectory')
@@ -620,10 +631,23 @@ class OpenScenarioParser(object):
                 raise AttributeError("Nurbs shapes are currently unsupported")
             else:
                 raise AttributeError("Requested shape {} isn't a valid shape".format(shape))
+            
+            # get available parameter declarations for trajectory
+            parameter_declarations = trajectory.find("ParameterDeclarations")
+            if parameter_declarations is not None:
+                for parameter_declaration in parameter_declarations.findall("ParameterDeclaration"):
+                    if parameter_declaration.get("name") in ["check_for_road_user", "check_for_prioritization_rule"]:
+                        if parameter_declaration.get("name") in parameters.keys():
+                            parameters[parameter_declaration.get("name")].append(parameter_declaration.get("value"))
+                        else:
+                            parameters[parameter_declaration.get("name")] = [parameter_declaration.get("value")]
+                    else:
+                        parameters[parameter_declaration.get("name")] = parameter_declaration.get("value")
+            
         else:
             raise AttributeError("No waypoints has been set")
 
-        return waypoints, times
+        return waypoints, times, parameters
 
     @staticmethod
     def convert_position_to_transform(position, actor_list=None):
@@ -645,7 +669,6 @@ class OpenScenarioParser(object):
                 y = y * (-1.0)
                 yaw = yaw * (-1.0)
             return carla.Transform(carla.Location(x=x, y=y, z=z), carla.Rotation(yaw=yaw, pitch=pitch, roll=roll))
-
         elif ((position.find('RelativeWorldPosition') is not None) or
               (position.find('RelativeObjectPosition') is not None) or
               (position.find('RelativeLanePosition') is not None) or
@@ -1274,6 +1297,7 @@ class OpenScenarioParser(object):
                                 entity_ref_actor = _actor
                                 break
                     if entity_ref_actor is None:
+                        print("Entity ref for actor which cannot be found: " + str(entity_action.attrib.get('entityRef')))
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
                     atomic = ActorDestroy(entity_ref_actor)
                 elif entity_action.find('AddEntityAction') is not None:
@@ -1286,7 +1310,7 @@ class OpenScenarioParser(object):
                             break
                     if entity_ref_actor is None:
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = AddActor(entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
+                    atomic = AddActor(actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
             else:
                 raise NotImplementedError("Global actions are not yet supported")
         elif action.find('UserDefinedAction') is not None:
@@ -1503,9 +1527,9 @@ class OpenScenarioParser(object):
                     atomic = ChangeActorWaypoints(actor, waypoints=waypoints, name=maneuver_name)
                 elif private_action.find('FollowTrajectoryAction') is not None:
                     trajectory_action = private_action.find('FollowTrajectoryAction')
-                    waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action, catalogs)
+                    waypoints, times, parameters = OpenScenarioParser.get_trajectory(trajectory_action, catalogs, config.version)
                     atomic = ChangeActorWaypoints(actor, waypoints=list(zip(waypoints, ['shortest'] * len(waypoints))),
-                                                  times=times, name=maneuver_name)
+                                                  times=times, name=maneuver_name, additional_parameters=parameters)
                 elif private_action.find('AcquirePositionAction') is not None:
                     route_action = private_action.find('AcquirePositionAction')
                     osc_position = route_action.find('Position')

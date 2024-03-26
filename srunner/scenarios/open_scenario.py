@@ -610,6 +610,23 @@ class OpenScenario(BasicScenario):
                             if actor.rolename == entity_ref:
                                 config.other_actors.remove(actor)
 
+            # workaround since new spawned actors cannot be controlled in actual version - so spawn all vehicles outside relevant map
+            added_entity_refs = 0
+            maneuvergroups = config.stories[0].find("Act").findall("ManeuverGroup")
+            for maneuvergroup in maneuvergroups:
+                for maneuver in maneuvergroup.findall("Maneuver"):
+                    for event in maneuver.findall("Event"):
+                        for action in event.findall("Action"):
+                            for global_action in action.findall("GlobalAction"):
+                                for entity_action in global_action.findall("EntityAction"):
+                                    entity_ref = entity_action.attrib.get("entityRef")
+                                    if entity_action.find("AddEntityAction") is not None:
+                                        for actor in config.other_actors:
+                                            if actor.rolename == entity_ref:
+                                                actor.transform.location.x = 1000.0 + 10.0*added_entity_refs
+                                                actor.transform.location.z -= 20.0
+                                                added_entity_refs += 1
+
             new_actors = CarlaDataProvider.request_new_actors(config.other_actors)
             if not new_actors:
                 raise Exception("Error: Unable to add actors")

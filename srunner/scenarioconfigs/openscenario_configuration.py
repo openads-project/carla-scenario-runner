@@ -40,6 +40,8 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         self.filename = filename
         self._custom_params = custom_params if custom_params is not None else {}
 
+        self.version = self._get_version_from_xml()
+
         self._validate_openscenario_configuration()
         self.client = client
 
@@ -62,13 +64,32 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         self._set_parameters()
         self._parse_openscenario_configuration()
 
+    def _get_version_from_xml(self):
+        """
+        get version from xml file
+        """
+        version = {}
+        try:
+            header = self.xml_tree.find("FileHeader")
+            version["revMajor"] = header.attrib.get('revMajor')
+            version["revMinor"] = header.attrib.get('revMinor')
+        except AttributeError:
+            raise AttributeError("Version cannot be read from xml file")
+        return version
+        
+    def _get_xsd_file(self):
+        """
+        get xsd file dependend on version
+        """
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO_" + str(self.version["revMajor"]) + "-"+ str(self.version["revMinor"]) + ".xsd")
+
     def _validate_openscenario_configuration(self):
         """
         Validate the given OpenSCENARIO config against the 1.0 XSD
 
         Note: This will throw if the config is not valid. But this is fine here.
         """
-        xsd_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO.xsd")
+        xsd_file = self._get_xsd_file()
         xsd = xmlschema.XMLSchema(xsd_file)
         xsd.validate(self.xml_tree)
 
@@ -78,7 +99,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
 
         Note: This will throw if the catalog config is not valid. But this is fine here.
         """
-        xsd_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../openscenario/OpenSCENARIO.xsd")
+        xsd_file = self._get_xsd_file()
         xsd = xmlschema.XMLSchema(xsd_file)
         xsd.validate(catalog_xml_tree)
 
@@ -101,9 +122,10 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         """
         Ensure correct OpenSCENARIO version is used
         """
-        header = self.xml_tree.find("FileHeader")
-        if not (header.attrib.get('revMajor') == "1" and header.attrib.get('revMinor') == "0"):
-            raise AttributeError("Only OpenSCENARIO 1.0 is supported")
+        if not self.version["revMajor"] == "1" or not self.version["revMinor"] in ["0", "1"]:
+            raise AttributeError("Only OpenSCENARIO 1.0 or 1.1 is supported")
+        if self.version["revMinor"] == "1":
+            print("Warning: Only few functionality is availbale for OpenSCENARIO 1.1")
 
     def _load_catalogs(self):
         """
@@ -375,7 +397,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         if not actor_found:
             # pylint: disable=line-too-long
             self.logger.warning(
-                " Warning: The actor '%s' was not assigned an initial position. Using (0,0,0)", actor_name)
+                " Warning: The actor '%s' was not assigned an initial position at t=0 (not relevant for later spawning vehicles). Using (0,0,0)", actor_name)
             # pylint: enable=line-too-long
         return actor_transform
 

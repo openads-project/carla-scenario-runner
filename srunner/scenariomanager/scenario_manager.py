@@ -212,7 +212,7 @@ class ScenarioManager(object):
         criteria = self.scenario.get_criteria()
         if len(criteria) == 0:
             print("Nothing to analyze, this scenario has no criteria")
-            return True
+            return False
 
         for criterion in criteria:
             if (not criterion.optional and

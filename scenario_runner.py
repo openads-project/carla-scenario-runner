@@ -195,7 +195,7 @@ class ScenarioRunner(object):
         for i, _ in enumerate(self.ego_vehicles):
             if self.ego_vehicles[i]:
                 if not self._args.waitForEgo and self.ego_vehicles[i] is not None and self.ego_vehicles[i].is_alive:
-                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id))
+                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id) + " in scenario_runner.py/_cleanup. Error may occur due to Carla issue.")
                     self.ego_vehicles[i].destroy()
                 self.ego_vehicles[i] = None
         self.ego_vehicles = []
@@ -453,8 +453,9 @@ class ScenarioRunner(object):
 
         try:
             if self._args.record:
-                recorder_name = "{}/{}/{}.log".format(
-                    os.getenv('SCENARIO_RUNNER_ROOT', "./"), self._args.record, config.name)
+                #recorder_name = "{}/{}/{}.log".format(
+                #    os.getenv('SCENARIO_RUNNER_ROOT', "."), self._args.record, config.name)
+                recorder_name = "{}/{}.log".format(self._args.record, config.name)
                 self.client.start_recorder(recorder_name, True)
 
             # Load scenario and run it
@@ -625,7 +626,7 @@ def main():
     parser.add_argument('--reloadWorld', action="store_true",
                         help='Reload the CARLA world before starting a scenario (default=True)')
     parser.add_argument('--record', type=str, default='',
-                        help='Path were the files will be saved, relative to SCENARIO_RUNNER_ROOT.\nActivates the CARLA recording feature and saves to file all the criteria information.')
+                        help='Path were the files will be saved.\nActivates the CARLA recording feature and saves to file all the criteria information.')
     parser.add_argument('--randomize', action="store_true", help='Scenario parameters are randomized')
     parser.add_argument('--repetitions', default=1, type=int, help='Number of scenario executions')
     parser.add_argument('--waitForEgo', action="store_true", help='Connect the scenario to an existing ego vehicle')
