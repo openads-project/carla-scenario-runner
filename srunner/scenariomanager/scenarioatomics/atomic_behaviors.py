@@ -783,6 +783,41 @@ class ChangeActorWaypoints(AtomicBehavior):
                     self.check_for_prioritization_rules = additional_parameters["check_for_prioritization_rule"]
                 else:
                     self.check_for_prioritization_rules = []
+                self.arts_config = self._get_arts_config(additional_parameters)
+
+    def _get_arts_config(self, args):
+        """
+        create config for arts to avoid magic numbers
+        """
+        # set default config 
+        config = {
+            "catchup_velocity_percentage": 20.0,
+            "threshold_thw": 1.0,
+            "threshold_ttc": 1.5,
+            "threshold_dhw": 1.0
+        }
+        
+        # automated casting and rewriting values from config if necessary - overwriting values from args
+        for arg_key in list(args.keys()):
+            if "config" in arg_key:
+                config_name = arg_key.split("_")[1]
+                actual_type = None
+                if config_name in self.config.keys():
+                    actual_type = type(config[config_name])
+                config[config_name] = args[arg_key]
+                try:
+                    if actual_type == int:
+                        config[config_name] = int(args[arg_key])
+                    elif actual_type == float: 
+                        config[config_name] = float(args[arg_key])
+                    elif actual_type == bool:
+                        if args[arg_key] == "True":
+                            config[config_name] = True
+                        else:
+                            config[config_name] = False
+                except ValueError:
+                    print("ERROR: Invalid entry casting config for key '" + str(arg_key) + "' in approaching control. Use default instead.")
+        return config            
 
     def initialise(self):
         """
@@ -954,7 +989,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         # calculate scalar speed according to lookahead
         remaining_dist = self._direct_distance(actor_location, location_ahead)
         remaining_time = self._times[lookahead_idx] - current_relative_time
-        target_speed = remaining_dist / max(remaining_time, 0.001)
+        target_speed = remaining_dist / max(remaining_time, 0.001)  # just using a small number to avoid division by zero
     
         # set speed
         if current_relative_time < switch_following_method_at_time:
@@ -1000,7 +1035,6 @@ class ChangeActorWaypoints(AtomicBehavior):
         # get actual and target location
         target_waypoint = self._waypoints[current_waypoint_idx]
         target_transform = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(target_waypoint[0])
-        target_location = target_transform.location
         actor_location = CarlaDataProvider.get_location(self._actor)
             
         current_waypoint_idx_guess = self._get_closest_waypoint_idx(actor_location, [trans.location for trans in self._waypoint_transforms])  # check for actual closest waypoint depending on actual location of actor
@@ -1012,18 +1046,10 @@ class ChangeActorWaypoints(AtomicBehavior):
         # get further needed waypoints
         offset_idx = lookahead
         lookahead_idx = min(len(self._waypoints)-1, current_waypoint_idx+offset_idx)
-        prior_waypoint = None if current_waypoint_idx == 0 else self._waypoints[current_waypoint_idx]
-        prior_transform = None if prior_waypoint == None else sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(prior_waypoint[0])
-        prior_location = None if prior_transform == None else prior_transform.location
         
         waypoint_ahead = self._waypoints[lookahead_idx]
         transform_ahead = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(waypoint_ahead[0])
         location_ahead = transform_ahead.location
-            
-        # define metric thresholds
-        threshold_thw = 1.0
-        threshold_ttc = 1.5
-        threshold_dhw = 1.0
         
         # check whether thresholds are fullfilled
         ttc = math.inf
@@ -1039,13 +1065,13 @@ class ChangeActorWaypoints(AtomicBehavior):
                         
         # calculate metrics only if road user is not standing still
         # CAUTION: no direction of ttc calculated or rules investigated - comes excusively from prioritized objects by now
-        if self._calculate_velocity(self._actor.get_velocity()) > 0.2:
-            ttc, ru_name_ttc = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_ttc, discretization=0.1)
-            thw, ru_name_thw = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)
-        dhw, ru_name_dhw = self._calc_advanced_ttx_metric(metric_type="dhw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=threshold_thw, discretization=0.1)
+        if self._calculate_velocity(self._actor.get_velocity()) > 0.2:  # to check whether road user stand still
+            ttc, _ = self._calc_advanced_ttx_metric(metric_type="ttc", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=self.arts_config["threshold_ttc"], discretization=0.1)
+            thw, _ = self._calc_advanced_ttx_metric(metric_type="thw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=self.arts_config["threshold_thw"], discretization=0.1)
+        dhw, _ = self._calc_advanced_ttx_metric(metric_type="dhw", current_idx=current_waypoint_idx_guess, actors_to_consider=actors_to_consider, time_horizon=self.arts_config["threshold_dhw"], discretization=0.1)
         
         # decide mode based on metrices and whether it is at correct waypoint        
-        if ttc > threshold_ttc and thw > threshold_thw and dhw > threshold_dhw:
+        if ttc > self.arts_config["threshold_ttc"] and thw > self.arts_config["threshold_thw"] and dhw > self.arts_config["threshold_dhw"]:
             if last_waypoint_past:
                 arts_mode = ARtSMode.FollowTrajectory
             else:
@@ -1056,7 +1082,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         # calculate scalar speed according to lookahead
         remaining_dist = self._direct_distance(actor_location, location_ahead)
         remaining_time = self._times[lookahead_idx] - current_relative_time
-        target_speed = remaining_dist / max(remaining_time, 0.001)
+        target_speed = remaining_dist / max(remaining_time, 0.001)  # just to avoid division by zero
     
         # set speed at correct velocity without controller (not so smooth), but with lookahead
         direction = carla.Vector3D(location_ahead.x-actor_location.x, location_ahead.y-actor_location.y, location_ahead.z-actor_location.z)
@@ -1064,14 +1090,14 @@ class ChangeActorWaypoints(AtomicBehavior):
         normalized_direction = carla.Vector3D(direction.x/vector_length, direction.y/vector_length, direction.z/vector_length)
         
         if arts_mode == ARtSMode.Catchup:
-            target_speed = target_speed * 1.2
+            target_speed = target_speed * (1.0 + (self.arts_config["catchup_velocity_percentage"]/100.0))
         elif arts_mode == ARtSMode.Wait:
             target_speed = 0.0
             
         velocity_vector = carla.Vector3D(normalized_direction.x*target_speed, normalized_direction.y*target_speed, normalized_direction.z*target_speed)
         
-        # check if vehicle is on map. if not, leave velocity at 0
-        if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 100:
+        # check if vehicle is on map. if not, leave velocity at 0 - if it is not at map, vehlocity would be too large to be feasible
+        if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 200:
             # case if road user is not at envelope, but somewhere outside (teleport needed, so way to long)
             actor.update_target_speed(0)
             return
@@ -1082,8 +1108,8 @@ class ChangeActorWaypoints(AtomicBehavior):
         return
 
     def _control_direction(self, velocity_vector):
-        # set slip = 0 (otherwise drifts occur)
-        if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1:
+        # set slip = 0 (otherwise drifts occur - only for moving road users)
+        if math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2) > 1.0:  # check whether road user stand still
             transform = self._actor.get_transform()
             transform.rotation.yaw = np.arctan2(velocity_vector.y, velocity_vector.x)/math.pi*180 % 360
             self._actor.set_transform(transform) 
@@ -1145,8 +1171,6 @@ class ChangeActorWaypoints(AtomicBehavior):
             object_ru = object_ru_item[1]
             object_ru_id = object_ru_item[0]
             object_transform = object_ru.get_transform()
-            object_bb = object_ru.bounding_box
-            object_location = object_transform.location
             object_velocity = object_ru.get_velocity()
             object_velocity_abs = self._calculate_velocity(object_velocity)
             
@@ -1233,7 +1257,7 @@ class ChangeActorWaypoints(AtomicBehavior):
                     rules_okay = False
             # if rules are not fulfilled, has not to be considered
             if not rules_okay:
-                approx_distance += 0.1
+                approx_distance += 0.1  # just increase to dont have 0 here (which would mean we have a valid collision we use afterwards)
                 can_be_reached = False
         
         return approx_distance, can_be_reached
@@ -1280,7 +1304,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         abs_length = 0
         
         # discretization of timesteps to assign the correct locatino for each of those
-        for index_time_discretization, timestep in enumerate(np.arange(0.0, considered_time_horizon_in_seconds, discretization)):
+        for _, timestep in enumerate(np.arange(0.0, considered_time_horizon_in_seconds, discretization)):
             
             # distance to cover (ego drives in a certain timestep according to velocity)
             extrapolated_distance = ego_velocity_abs * timestep
@@ -1324,20 +1348,20 @@ class ChangeActorWaypoints(AtomicBehavior):
         """
         diff_angle = self._difference_angle(object_rotation.yaw, ego_rotation.yaw)
         
+        # angle to check if comming from right side +-45 degree
         if 45 < diff_angle < 135:
             return False
         return True
     
-    def _rule_behind(self, ego_location, ego_rotation, object_location, object_rotation):
+    def _rule_behind(self, ego_location, ego_rotation, object_location, object_rotation, allowed_difference_angle=20):
         """
         check if the vehicle is behind or next to, but not in front.
         only return "False" if vehicle is in front of the other
         """
         diff_angle = self._difference_angle(ego_rotation.yaw, object_rotation.yaw)
-        d_angle = 20
         
         # check if following
-        if diff_angle < d_angle or diff_angle > (360-d_angle):
+        if diff_angle < allowed_difference_angle or diff_angle > (360-allowed_difference_angle):
             # check if ego is in front of other vehicle
             offset = np.array([(ego_location.x - object_location.x), (ego_location.y - object_location.y)])
             ego_yaw_rad = ego_rotation.yaw/180*math.pi
