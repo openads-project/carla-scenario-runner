@@ -89,7 +89,7 @@ class ApproachingControl(BasicControl):
         function to get waypoints from given arguments from controller
         waypoints are set as properties. 
         format for a waypoint in openscenario file in "assigncontroller" according to example (srunner/examples/scenariocenter/inD_replay_to_sim_frankenburg_with_controller.xosc):
-        <Property name="waypoint_{number}" value="x:1.1234,y:2.345,z:0.0,h:3.141592654,p:0.0,r:0.0" />
+        <Property name="waypoint_{number}" value="x:1.234,y:2.345,z:0.0,h:3.141592654,p:0.0,r:0.0" />
         """
         
         waypoint_list = []
