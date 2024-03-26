@@ -865,7 +865,7 @@ class ChangeActorWaypoints(AtomicBehavior):
                                             if another ChangeActorWaypoints atomic for the same actor was triggered.
             py_trees.common.Status.FAILURE, if the actor is not found in ActorsWithController Blackboard dictionary.
             py_trees.common.Status.FAILURE, else.
-        """       
+        """
         try:
             check_actors = operator.attrgetter("ActorsWithController")
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
