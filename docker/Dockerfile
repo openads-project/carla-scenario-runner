@@ -48,9 +48,12 @@ RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_
     mv artifacts/PythonAPI ${CARLA_PATH}
 
 # Recursively install PythonAPI requirements, keep version of first occurrence
+# NOTE: Installing open3d somehow leads to several unavoidable upgrades, especially to Numpy>=2.0.0
+# This breaks Scenario Runner at the moment, thus open3d needs to be filtered out for the moment
 RUN cat $(find ${CARLA_API_PATH} -type f -name "requirements.txt") > /tmp/requirements_raw.txt \
     && awk -F '==' '{print $1}' /tmp/requirements_raw.txt | awk '!visited[$1]++' > /tmp/requirements.txt \
-    && pip3 install -r /tmp/requirements.txt
+    && sed -i '/^open3d$/d' /tmp/requirements.txt \
+    && pip3 install --upgrade-strategy only-if-needed -r /tmp/requirements.txt
 
 # Create script that adds API to pythonpath and make .bashrc source it
 RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/dist/$(ls $CARLA_API_PATH/carla/dist | grep py$(python --version | awk -F'[ .]' '{print $2"."$3}').)" >> /setup_carla_env.sh; \
