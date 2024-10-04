@@ -34,6 +34,8 @@ class RosVehicleControl(BasicControl):
     def __init__(self, actor, args=None):
         super(RosVehicleControl, self).__init__(actor)
 
+        self.target_waypoints = self.get_target_waypoints(args, actor.get_transform().location) 
+
         self._carla_actor = actor
         self._role_name = actor.attributes["role_name"]
         if not self._role_name:
@@ -127,7 +129,13 @@ class RosVehicleControl(BasicControl):
         path = Path()
         path.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         path.header.frame_id = "carla_map"
+        
+        print("waypoints")
         for wpt in waypoints:
+            print(wpt)
+
+        print("target_waypoints")
+        for wpt in target_waypoints:
             print(wpt)
             path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
         self._path_publisher.publish(path)
@@ -156,3 +164,21 @@ class RosVehicleControl(BasicControl):
             destination_point.point = trans.carla_location_to_ros_point(self._destination_point.location) 
             
             self._destination_publisher.publish(destination_point)
+    
+    def get_target_waypoints(self, args, al=None):
+        """
+        function to get waypoints from given arguments from controller
+        waypoints are set as properties. 
+        format for a waypoint in openscenario file in "assigncontroller" according to example (srunner/examples/scenariocenter/inD_replay_to_sim_frankenburg_with_controller.xosc):
+        <Property name="waypoint_{number}" value="x:1.234,y:2.345,z:0.0,h:3.141592654,p:0.0,r:0.0" />
+        """
+        
+        waypoint_list = []
+            
+        for _, element in args.items():
+            if "x:" in element and "y:" in element and "z:" in element:
+                x = float(element.split(",")[0].split(":")[1])
+                y = -float(element.split(",")[1].split(":")[1])
+                z = float(element.split(",")[2].split(":")[1])
+                waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
+        return waypoint_list
