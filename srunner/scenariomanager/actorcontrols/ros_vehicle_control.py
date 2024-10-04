@@ -12,7 +12,7 @@ ROS Vehicle Control usable by scenario-runner
 """
 
 import os
-
+import carla 
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
 
 import carla_common.transforms as trans
@@ -22,9 +22,11 @@ from ros_compatibility.qos import QoSProfile, DurabilityPolicy
 
 from carla_ros_scenario_runner.application_runner import ApplicationRunner
 
-from geometry_msgs.msg import PoseStamped, PointStamped
+from geometry_msgs.msg import PoseStamped, PointStamped, Point
 from nav_msgs.msg import Path
 from std_msgs.msg import Float64
+
+from route_planning_msgs.msg import Route
 
 ROS_VERSION = roscomp.get_ros_version()
 
@@ -41,9 +43,17 @@ class RosVehicleControl(BasicControl):
         if not self._role_name:
             roscomp.logerr("Invalid role_name")
 
-        self._path_topic_name = "waypoints"
+        if "initial_speed" in args:
+            self._initial_speed = float(args["initial_speed"])
+            self._carla_actor.set_target_velocity(carla.Vector3D(_initial_speed, 0, 0))  
+
+        self._path_topic_name = "path"
         if "path_topic_name" in args:
             self._path_topic_name = args["path_topic_name"]
+
+        self._route_topic_name = "route"
+        if "path_topic_name" in args:
+            self._route_topic_name = args["route_topic_name"]
 
         roscomp.init("ros_agent_{}".format(self._role_name), args=None)
 
@@ -65,6 +75,12 @@ class RosVehicleControl(BasicControl):
             "/carla/{}/{}".format(self._role_name, self._path_topic_name),
             QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.node.loginfo("Publishing path on /carla/{}/{}".format(self._role_name, self._path_topic_name))
+
+        self._route_publisher = self.node.new_publisher(
+            Route,
+            "/carla/{}/{}".format(self._role_name, self._route_topic_name),
+            QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.node.loginfo("Publishing route on /carla/{}/{}".format(self._role_name, self._route_topic_name))
 
         self._destination_publisher = self.node.new_publisher(
             PointStamped,
@@ -130,18 +146,28 @@ class RosVehicleControl(BasicControl):
         path.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         path.header.frame_id = "carla_map"
         
+        route = Route()
+        route.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
+        route.header.frame_id = "carla_map"
+
         print("waypoints")
         for wpt in waypoints:
             print(wpt)
 
         print("target_waypoints")
-        for wpt in target_waypoints:
+        for wpt in self.target_waypoints:
             print(wpt)
-            path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
-        self._path_publisher.publish(path)
-          
-        self._destination_point = waypoints[-1]
 
+        for wpt in self.target_waypoints:
+            route.remaining_route.append(trans.carla_location_to_ros_point(wpt))
+            path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
+
+        route.destination = trans.carla_location_to_ros_point(self.target_waypoints[-1])
+        self._destination_point = self.target_waypoints[-1]
+
+        self._path_publisher.publish(path)
+        self._route_publisher.publish(route)
+          
     def reset(self):
         # set target speed to zero before closing as the controller can take time to shutdown
         self.update_target_speed(0.)
@@ -155,6 +181,9 @@ class RosVehicleControl(BasicControl):
         if self._path_publisher:
             self.node.destroy_subscription(self._path_publisher)
             self._path_publisher = None
+        if self._route_publisher:
+            self.node.destroy_subscription(self._route_publisher)
+            self._route_publisher = None
 
     def run_step(self):    
         if self._destination_point:
@@ -180,5 +209,7 @@ class RosVehicleControl(BasicControl):
                 x = float(element.split(",")[0].split(":")[1])
                 y = -float(element.split(",")[1].split(":")[1])
                 z = float(element.split(",")[2].split(":")[1])
-                waypoint_list.append(carla.Vector3D(x=x, y=y, z=z))
+                transform = carla.Transform(carla.Location(x, y, z))
+                waypoint_list.append(transform)
+
         return waypoint_list
