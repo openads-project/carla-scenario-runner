@@ -45,7 +45,7 @@ class RosVehicleControl(BasicControl):
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
-            self._carla_actor.set_target_velocity(carla.Vector3D(_initial_speed, 0, 0))  
+            self._carla_actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))  
 
         self._path_topic_name = "path"
         if "path_topic_name" in args:
