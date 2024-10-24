@@ -191,7 +191,7 @@ class ScenarioManager(object):
                 if dt < timestamp.delta_seconds:
                     time.sleep(timestamp.delta_seconds - dt)
                 else:
-                    print("ScenarioManager: Realtime can't be reached. Execution is delayed by {:.3f}s".format(dt - timestamp))
+                    print("ScenarioManager: Realtime can't be reached. Execution is delayed by {:.3f}s".format(dt - timestamp.delta_seconds))
                 self.runtime_timestamp = time.time()
             CarlaDataProvider.get_world().tick()
 
