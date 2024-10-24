@@ -13,7 +13,7 @@ ROS Vehicle Control usable by scenario-runner
 
 import os
 import carla 
-from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
+from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
 import carla_common.transforms as trans
 import ros_compatibility as roscomp
@@ -31,7 +31,7 @@ from route_planning_msgs.msg import Route
 ROS_VERSION = roscomp.get_ros_version()
 
 
-class RosVehicleControl(BasicControl):
+class RosVehicleControl(ExternalControl):
 
     def __init__(self, actor, args=None):
         super(RosVehicleControl, self).__init__(actor)
@@ -63,6 +63,7 @@ class RosVehicleControl(BasicControl):
         self._current_path = None
         self.controller_launch = None
         self._destination_point = None
+        self._first_cycle = True
 
         self._target_speed_publisher = self.node.new_publisher(
             Float64,
@@ -122,6 +123,8 @@ class RosVehicleControl(BasicControl):
             self.node.logwarn(
                 "{}: Missing value for 'launch' and/or 'launch-package'.".format(self._role_name))
 
+        self.update_waypoints(self.target_waypoints)
+
     def controller_runner_log(self, log):  # pylint: disable=no-self-use
         """
         Callback for application logs
@@ -142,6 +145,9 @@ class RosVehicleControl(BasicControl):
     def update_waypoints(self, waypoints, start_time=None):
         super(RosVehicleControl, self).update_waypoints(waypoints, start_time)
         self.node.loginfo("{}: Waypoints changed.".format(self._role_name))
+
+        if not self._first_cycle: return
+
         path = Path()
         path.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         path.header.frame_id = "carla_map"
@@ -150,27 +156,27 @@ class RosVehicleControl(BasicControl):
         route.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         route.header.frame_id = "carla_map"
 
-        print("waypoints")
-        for wpt in waypoints:
-            print(wpt)
-
         print("target_waypoints")
         for wpt in self.target_waypoints:
             print(wpt)
 
         for wpt in self.target_waypoints:
-            route.remaining_route.append(trans.carla_location_to_ros_point(wpt))
+            route.remaining_route.append(trans.carla_location_to_ros_point(wpt.location))
             path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
 
-        route.destination = trans.carla_location_to_ros_point(self.target_waypoints[-1])
+        route.destination = trans.carla_location_to_ros_point(self.target_waypoints[-1].location)
         self._destination_point = self.target_waypoints[-1]
 
         self._path_publisher.publish(path)
         self._route_publisher.publish(route)
+        self._first_cycle = False
+
+        # sleep for a moment until next tick
+        self.node.sleep(5.0)
           
     def reset(self):
         # set target speed to zero before closing as the controller can take time to shutdown
-        self.update_target_speed(0.)
+        self.update_target_speed(0.0)
         if self.controller_launch and self.controller_launch.is_running():
             self.controller_launch.shutdown()
         if self._carla_actor and self._carla_actor.is_alive:
