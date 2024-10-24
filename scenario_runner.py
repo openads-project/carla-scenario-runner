@@ -104,7 +104,7 @@ class ScenarioRunner(object):
             self.module_agent = importlib.import_module(module_name)
 
         # Create the ScenarioManager
-        self.manager = ScenarioManager(self._args.debug, self._args.sync, self._args.timeout)
+        self.manager = ScenarioManager(self._args.debug, self._args.sync, self._args.timeout, self._args.enforceRealtime)
 
         # Create signal handler for SIGINT
         self._shutdown_requested = False
@@ -630,6 +630,7 @@ def main():
     parser.add_argument('--randomize', action="store_true", help='Scenario parameters are randomized')
     parser.add_argument('--repetitions', default=1, type=int, help='Number of scenario executions')
     parser.add_argument('--waitForEgo', action="store_true", help='Connect the scenario to an existing ego vehicle')
+    parser.add_argument('--enforceRealtime', action="store_true", help='Enforce realtime execution (if possible) for sync tick')
 
     arguments = parser.parse_args()
     # pylint: enable=line-too-long
