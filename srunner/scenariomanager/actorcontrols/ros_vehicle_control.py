@@ -139,12 +139,16 @@ class RosVehicleControl(ExternalControl):
 
     def update_target_speed(self, speed):
         super(RosVehicleControl, self).update_target_speed(speed)
-        self.node.loginfo("{}: Target speed changed to {}".format(self._role_name, speed))
+        self.node.loginfo("{}: Call update_target_speed function and set speed to {}".format(self._role_name, speed))
         self._target_speed_publisher.publish(Float64(data=speed))
+
+        if self._first_cycle:
+            self._carla_actor.set_target_velocity(carla.Vector3D(speed, 0, 0)) 
+
 
     def update_waypoints(self, waypoints, start_time=None):
         super(RosVehicleControl, self).update_waypoints(waypoints, start_time)
-        self.node.loginfo("{}: Waypoints changed.".format(self._role_name))
+        self.node.loginfo("{}: Call update_waypoints.".format(self._role_name))
 
         if not self._first_cycle: return
 
