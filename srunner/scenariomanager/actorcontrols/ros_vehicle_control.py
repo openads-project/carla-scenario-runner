@@ -12,6 +12,9 @@ ROS Vehicle Control usable by scenario-runner
 """
 
 import os
+import time
+import math
+
 import carla 
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
@@ -139,7 +142,7 @@ class RosVehicleControl(ExternalControl):
 
     def update_target_speed(self, speed):
         super(RosVehicleControl, self).update_target_speed(speed)
-        self.node.loginfo("{}: Call update_target_speed function and set speed to {}".format(self._role_name, speed))
+        self.node.loginfo("{}: (ros_vehicle_control) Call update_target_speed function and set speed to {}".format(self._role_name, speed))
         self._target_speed_publisher.publish(Float64(data=speed))
 
         if self._first_cycle:
@@ -148,7 +151,7 @@ class RosVehicleControl(ExternalControl):
 
     def update_waypoints(self, waypoints, start_time=None):
         super(RosVehicleControl, self).update_waypoints(waypoints, start_time)
-        self.node.loginfo("{}: Call update_waypoints.".format(self._role_name))
+        self.node.loginfo("{}: (ros_vehicle_control) Call update_waypoints.".format(self._role_name))
 
         if not self._first_cycle: return
 
@@ -159,10 +162,6 @@ class RosVehicleControl(ExternalControl):
         route = Route()
         route.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         route.header.frame_id = "carla_map"
-
-        print("target_waypoints")
-        for wpt in self.target_waypoints:
-            print(wpt)
 
         last_ros_point = None
         for wpt in self.target_waypoints:
@@ -183,7 +182,8 @@ class RosVehicleControl(ExternalControl):
         self._first_cycle = False
 
         # sleep for a moment until next tick
-        self.node.sleep(5.0)
+        print("sleeping for a while")
+        time.sleep(5.0)
           
     def reset(self):
         # set target speed to zero before closing as the controller can take time to shutdown
