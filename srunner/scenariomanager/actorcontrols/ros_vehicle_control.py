@@ -160,8 +160,15 @@ class RosVehicleControl(ExternalControl):
         for wpt in self.target_waypoints:
             print(wpt)
 
+        last_ros_point = None
         for wpt in self.target_waypoints:
-            route.remaining_route.append(trans.carla_location_to_ros_point(wpt.location))
+            ros_point = trans.carla_location_to_ros_point(wpt.location)
+
+            if last_ros_point:
+                ros_point.z = last_ros_point.z + math.sqrt((ros_point.x - last_ros_point.x)**2 + (ros_point.y - last_ros_point.y)**2)
+            last_ros_point = ros_point
+
+            route.remaining_route.append(ros_point)
             path.poses.append(PoseStamped(pose=trans.carla_transform_to_ros_pose(wpt)))
 
         route.destination = trans.carla_location_to_ros_point(self.target_waypoints[-1].location)
