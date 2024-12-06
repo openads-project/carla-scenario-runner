@@ -30,6 +30,7 @@ from nav_msgs.msg import Path
 from std_msgs.msg import Float64
 
 from route_planning_msgs.msg import Route
+from trajectory_planning_msgs.msg import Trajectory
 
 ROS_VERSION = roscomp.get_ros_version()
 
@@ -54,6 +55,10 @@ class RosVehicleControl(ExternalControl):
         if "path_topic_name" in args:
             self._path_topic_name = args["path_topic_name"]
 
+        self._trajectory_topic_name = "/planning/drivable_trajectory"
+        if "trajectory_topic_name" in args:
+            self._trajectory_topic_name = args["trajectory_topic_name"]
+
         self._route_topic_name = "route"
         if "path_topic_name" in args:
             self._route_topic_name = args["route_topic_name"]
@@ -67,6 +72,9 @@ class RosVehicleControl(ExternalControl):
         self.controller_launch = None
         self._destination_point = None
         self._first_cycle = True
+        self._trajectory_received = False
+
+        self._trajectory_subscriber = self.node.create_subscription(Trajectory, self._trajectory_topic_name, self.trajectoryCallback, qos_profile=1)
 
         self._target_speed_publisher = self.node.new_publisher(
             Float64,
@@ -126,7 +134,16 @@ class RosVehicleControl(ExternalControl):
             self.node.logwarn(
                 "{}: Missing value for 'launch' and/or 'launch-package'.".format(self._role_name))
 
-        self.update_waypoints(self.target_waypoints)
+
+    def trajectoryCallback(self, msg: Trajectory):
+        self.node.loginfo("{}: (ros_vehicle_control) Received trajectory {}".format(self._role_name))
+
+        # if the trajectory is drivable and not a standstill trajectory
+        if msg.type_id == 1 and not msg.standstill:
+            self._trajectory_received = True
+            self.node.loginfo("{}: (ros_vehicle_control) Received first trajectory {}".format(self._role_name))
+            self.update_waypoints(self.target_waypoints)
+
 
     def controller_runner_log(self, log):  # pylint: disable=no-self-use
         """
@@ -181,9 +198,10 @@ class RosVehicleControl(ExternalControl):
         self._route_publisher.publish(route)
         self._first_cycle = False
 
-        # sleep for a moment until next tick
-        print("sleeping for a while")
-        time.sleep(5.0)
+        # sleep until first trajectory is received
+        while (not self._trajectory_received):
+            print("Wait for first trajectory ...")
+            time.sleep(0.1)
           
     def reset(self):
         # set target speed to zero before closing as the controller can take time to shutdown
