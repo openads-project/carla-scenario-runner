@@ -72,9 +72,6 @@ class RosVehicleControl(ExternalControl):
         self.controller_launch = None
         self._destination_point = None
         self._first_cycle = True
-        self._trajectory_received = False
-
-        self._trajectory_subscriber = self.node.create_subscription(Trajectory, self._trajectory_topic_name, self.trajectoryCallback, qos_profile=1)
 
         self._target_speed_publisher = self.node.new_publisher(
             Float64,
@@ -134,15 +131,7 @@ class RosVehicleControl(ExternalControl):
             self.node.logwarn(
                 "{}: Missing value for 'launch' and/or 'launch-package'.".format(self._role_name))
 
-
-    def trajectoryCallback(self, msg: Trajectory):
-        self.node.loginfo("{}: (ros_vehicle_control) Received trajectory {}".format(self._role_name))
-
-        # if the trajectory is drivable and not a standstill trajectory
-        if msg.type_id == 1 and not msg.standstill:
-            self._trajectory_received = True
-            self.node.loginfo("{}: (ros_vehicle_control) Received first trajectory {}".format(self._role_name))
-            self.update_waypoints(self.target_waypoints)
+        self.update_waypoints(self.target_waypoints)
 
 
     def controller_runner_log(self, log):  # pylint: disable=no-self-use
@@ -175,7 +164,7 @@ class RosVehicleControl(ExternalControl):
         path = Path()
         path.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         path.header.frame_id = "carla_map"
-        
+
         route = Route()
         route.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
         route.header.frame_id = "carla_map"
@@ -197,12 +186,16 @@ class RosVehicleControl(ExternalControl):
         self._path_publisher.publish(path)
         self._route_publisher.publish(route)
         self._first_cycle = False
+        self.node.loginfo("Route was published")
+    
 
-        # sleep until first trajectory is received
-        while (not self._trajectory_received):
-            print("Wait for first trajectory ...")
-            time.sleep(0.1)
-          
+        self.node.loginfo("Wait for non-standstill trajectory message ...")
+        while (True):
+            msg = self.node.wait_for_message(self._trajectory_topic_name, Trajectory)
+            if not msg.standstill:
+                break
+        self.node.loginfo("Received non-standstill trajectory message")
+
     def reset(self):
         # set target speed to zero before closing as the controller can take time to shutdown
         self.update_target_speed(0.0)
@@ -220,15 +213,15 @@ class RosVehicleControl(ExternalControl):
             self.node.destroy_subscription(self._route_publisher)
             self._route_publisher = None
 
-    def run_step(self):    
+    def run_step(self):
         if self._destination_point:
             destination_point = PointStamped()
             destination_point.header.stamp = roscomp.ros_timestamp(sec=self.node.get_time(), from_sec=True)
             destination_point.header.frame_id = "carla_map"
             destination_point.point = trans.carla_location_to_ros_point(self._destination_point.location) 
-            
+
             self._destination_publisher.publish(destination_point)
-    
+
     def get_target_waypoints(self, args, al=None):
         """
         function to get waypoints from given arguments from controller
