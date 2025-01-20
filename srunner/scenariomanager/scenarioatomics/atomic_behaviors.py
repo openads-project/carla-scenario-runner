@@ -854,7 +854,7 @@ class ChangeActorWaypoints(AtomicBehavior):
             else:
                 if i == 0:
                     mmap = CarlaDataProvider.get_map()
-                    ego_location = CarlaDataProvider._initial_timestepder.get_location(self._actor)
+                    ego_location = CarlaDataProvider.get_location(self._actor)
                     ego_waypoint = mmap.get_waypoint(ego_location)
                     try:
                         ego_next_wp = ego_waypoint.next(1)[0]
