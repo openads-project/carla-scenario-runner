@@ -18,7 +18,7 @@ import ros_compatibility as roscomp
 import threading
 
 from geometry_msgs.msg import PointStamped, Point
-from route_planning_msgs.action import GlobalManeuver
+from route_planning_msgs.action import PlanRoute
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
 ROS_VERSION = roscomp.get_ros_version()
@@ -54,7 +54,7 @@ class NavigationClient(Node):
         super().__init__("navigation_client")
 
         # Create an action client
-        self.client = ActionClient(self, GlobalManeuver, 'll2_route_planning/execute_global_maneuver')
+        self.client = ActionClient(self, PlanRoute, 'll2_route_planning/execute_global_maneuver')
 
         # Wait for the action server to be available
         self.client.wait_for_server()
@@ -67,7 +67,7 @@ class NavigationClient(Node):
         point_map.header.stamp = self.get_clock().now().to_msg()
         point_map.point = Point(x=x, y=y, z=0.0)
 
-        goal_msg = GlobalManeuver.Goal()
+        goal_msg = PlanRoute.Goal()
         goal_msg.destination = point_map
 
         send_goal_future = self.client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
