@@ -8,7 +8,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 """
-ROS Vehicle Control that sends goal action usable by scenario-runner
+ROS Vehicle Control that sends route action usable by scenario-runner
 """
 
 import rclpy
@@ -24,12 +24,12 @@ from srunner.scenariomanager.actorcontrols.external_control import ExternalContr
 ROS_VERSION = roscomp.get_ros_version()
 
 
-class RosVehicleControlGoalAction(ExternalControl):
+class RosVehicleControlRouteService(ExternalControl):
 
     def __init__(self, actor, args=None):
         super().__init__(actor)
 
-        print(f"RosVehicleControlGoalAction args: {args}")
+        print(f"RosVehicleControlRouteService args: {args}")
         target_x = float(args["target_x"])
         target_y = float(args["target_y"])
 
