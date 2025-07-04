@@ -54,14 +54,14 @@ class NavigationClient(Node):
         super().__init__("navigation_client")
 
         # Create an action client
-        self.client = ActionClient(self, PlanRoute, 'll2_route_planning/execute_global_maneuver')
+        self.client = ActionClient(self, PlanRoute, '/lanelet2_route_planning/plan_route')
 
         # Wait for the action server to be available
         self.client.wait_for_server()
 
     def send_goal(self, x, y, yaw):
         """Send a navigation goal to the action server"""
-
+        print(f"Sending goal to ({x}, {y}) with yaw {yaw}")
         point_map = PointStamped()
         point_map.header.frame_id = "map"
         point_map.header.stamp = self.get_clock().now().to_msg()
