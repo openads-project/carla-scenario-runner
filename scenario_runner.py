@@ -418,7 +418,7 @@ class ScenarioRunner(object):
             tm.set_synchronous_mode(True)
 
         # Prepare scenario
-        print("Preparing scenario: " + config.name)
+        print("Preparing scenario: " + config.name, flush=True)
         try:
             self._prepare_ego_vehicles(config.ego_vehicles)
             if self._args.openscenarios:

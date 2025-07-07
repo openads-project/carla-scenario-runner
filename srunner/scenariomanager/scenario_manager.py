@@ -120,7 +120,7 @@ class ScenarioManager(object):
         """
         Trigger the start of the scenario and wait for it to finish/fail
         """
-        print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name))
+        print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name), flush=True)
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
 
