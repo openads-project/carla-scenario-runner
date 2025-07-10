@@ -37,7 +37,7 @@ class RosVehicleControlRouteService(ExternalControl):
         print(f"RosVehicleControlRouteService args: {args}", flush=True)
         target_x = float(args["target_x"])
         target_y = float(args["target_y"])
-        
+
         if not rclpy.ok():
             rclpy.init()
         self.node = NavigationClient(target_x, target_y)
@@ -86,7 +86,7 @@ class NavigationClient(Node):
             print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
             return
 
-        if not msg.standstill and not self.received_trajectory:
+        if msg.standstill and not self.received_trajectory:
             print("Received first not standstill trajectory ...", flush=True)
 
             self.send_goal(x=self.target_x, y=self.target_y, yaw=0.0)
