@@ -59,7 +59,7 @@ class NavigationClient(Node):
 
         self.target_x = target_x
         self.target_y = target_y
-        self.received_trajectory = False
+        self.route_triggered_flag = False
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -86,12 +86,12 @@ class NavigationClient(Node):
             print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
             return
 
-        if msg.standstill and not self.received_trajectory:
+        if msg.standstill and not self.route_triggered_flag:
             print("Received first not standstill trajectory ...", flush=True)
 
             self.send_goal(x=self.target_x, y=self.target_y, yaw=0.0)
 
-            self.received_trajectory = True
+            self.route_triggered_flag = True
 
     def send_goal(self, x, y, yaw):
         """Send a navigation goal to the action server"""
@@ -112,6 +112,7 @@ class NavigationClient(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             print("Goal rejected :(", flush=True)
+            self.route_triggered_flag = False
             return
 
         print("Goal accepted!", flush=True)
