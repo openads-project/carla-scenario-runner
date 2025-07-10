@@ -37,9 +37,10 @@ class RosVehicleControlRouteService(ExternalControl):
         print(f"RosVehicleControlRouteService args: {args}", flush=True)
         target_x = float(args["target_x"])
         target_y = float(args["target_y"])
-
-        rclpy.init()
-        self.node = NavigationClient()
+        
+        if not rclpy.ok():
+            rclpy.init()
+        self.node = NavigationClient(target_x, target_y)
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
@@ -52,10 +53,12 @@ class RosVehicleControlRouteService(ExternalControl):
         pass
 
 class NavigationClient(Node):
-    def __init__(self):
+    def __init__(self, target_x, target_y):
         super().__init__("navigation_client")
         print("NavigationClient initialized", flush=True)
 
+        self.target_x = target_x
+        self.target_y = target_y
         self.received_trajectory = False
 
         self.trajectory_sub = self.create_subscription(
@@ -86,7 +89,7 @@ class NavigationClient(Node):
         if not msg.standstill and not self.received_trajectory:
             print("Received first not standstill trajectory ...", flush=True)
 
-            self.send_goal(x=target_x, y=target_y, yaw=0.0)
+            self.send_goal(x=self.target_x, y=self.target_y, yaw=0.0)
 
             self.received_trajectory = True
 
