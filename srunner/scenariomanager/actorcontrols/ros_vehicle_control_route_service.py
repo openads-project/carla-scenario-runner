@@ -20,9 +20,13 @@ import threading
 from geometry_msgs.msg import PointStamped, Point
 from route_planning_msgs.action import PlanRoute
 from trajectory_planning_msgs.msg import Trajectory
+from perception_msgs.msg import EgoData
 
 import tf2_ros
 from tf2_ros import TransformException
+
+import carla
+import time
 
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
@@ -37,6 +41,10 @@ class RosVehicleControlRouteService(ExternalControl):
         print(f"RosVehicleControlRouteService args: {args}", flush=True)
         target_x = float(args["target_x"])
         target_y = float(args["target_y"])
+
+        if "initial_speed" in args:
+            self._initial_speed = float(args["initial_speed"])
+            actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))
 
         if not rclpy.ok():
             rclpy.init()
@@ -60,11 +68,19 @@ class NavigationClient(Node):
         self.target_x = target_x
         self.target_y = target_y
         self.route_triggered_flag = False
+        self.initialized_position = False
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
             "/planning/drivable_trajectory",  # oder was dein Topic ist
             self.trajectory_callback,
+            10
+        )
+
+        self.egodata_sub = self.create_subscription(
+            EgoData,
+            "/simulation/ego_data",
+            self.egodata_callback,
             10
         )
 
@@ -76,13 +92,23 @@ class NavigationClient(Node):
         # Wait for the action server to be available
         self.client.wait_for_server()
 
+    def egodata_callback(self, msg):
+        if not self.initialized_position:
+            x = msg.state.continuous_state[0]
+            y = msg.state.continuous_state[1]
+
+            if x < 995 or x > 1005 or y < 995 or y > 1005:
+                self.initialized_position = True
+                print(f"Initialized position at ({x}, {y})", flush=True)
+
     def trajectory_callback(self, msg):
         try:
             self.tf_buffer.lookup_transform(
                 'map', 'base_link',
                 rclpy.time.Time()
             )
-        except tf2_ros.LookupException as e:
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+
             print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
             return
 
@@ -97,8 +123,7 @@ class NavigationClient(Node):
         """Send a navigation goal to the action server"""
         print(f"Sending goal to ({x}, {y}) with yaw {yaw}", flush=True)
         point_map = PointStamped()
-        point_map.header.frame_id = "map"
-        point_map.header.stamp = self.get_clock().now().to_msg()
+        point_map.header.frame_id = "carla_map"
         point_map.point = Point(x=x, y=y, z=0.0)
 
         goal_msg = PlanRoute.Goal()
