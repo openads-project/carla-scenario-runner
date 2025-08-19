@@ -14,6 +14,9 @@ ROS Vehicle Control that sends route action usable by scenario-runner
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rosgraph_msgs.msg import Clock
+from builtin_interfaces.msg import Time
+
 import ros_compatibility as roscomp
 import threading
 
@@ -28,6 +31,7 @@ from tf2_ros import TransformException
 import carla
 import time
 
+from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
 ROS_VERSION = roscomp.get_ros_version()
@@ -58,7 +62,10 @@ class RosVehicleControlRouteService(ExternalControl):
         pass
 
     def run_step(self):
-        pass
+
+        timestamp = GameTime.get_time()
+        self.node.publish_clock(timestamp)
+
 
 class NavigationClient(Node):
     def __init__(self, target_x, target_y):
@@ -69,6 +76,8 @@ class NavigationClient(Node):
         self.target_y = target_y
         self.route_triggered_flag = False
         self.initialized_position = False
+
+        self.clock_publisher = self.create_publisher(Clock, 'clock', 10)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -91,6 +100,11 @@ class NavigationClient(Node):
 
         # Wait for the action server to be available
         self.client.wait_for_server()
+
+    def publish_clock(self, t):
+        secs = int(t)
+        nsecs = int((t - secs) * 1e9)
+        self.clock_publisher.publish(Clock(clock=Time(sec=secs, nanosec=nsecs)))
 
     def egodata_callback(self, msg):
         if not self.initialized_position:
