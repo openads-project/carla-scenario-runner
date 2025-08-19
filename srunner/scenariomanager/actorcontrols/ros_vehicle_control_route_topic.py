@@ -25,6 +25,8 @@ from perception_msgs.msg import EgoData
 
 import tf2_ros
 import carla
+import carla_common.transforms as trans
+
 
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
@@ -39,7 +41,7 @@ class RosVehicleControlRouteTopic(ExternalControl):
         params = {}
         params["ego_data_topic"] = "/simulation/ego_data"
         params["trajectory_topic"] = "/planning/drivable_trajectory"
-        params["route_topic"] = "/carla-scenario-runner/route"
+        params["route_topic"] = "/carla_scenario_runner/route"
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
@@ -129,13 +131,11 @@ class NavigationClient(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.route_pub = self.new_publisher(
+        self.route_pub = self.create_publisher(
             Route,
             params["route_topic"],
             10
         )
-
-        self.node.loginfo("Publishing route on {}".format(params["route_topic"]))
 
     def clock_callback(self, msg):
         self.time = msg.clock
@@ -199,7 +199,7 @@ class NavigationClient(Node):
             route.remaining_route_elements.append(route_element)
 
         # set final route information
-        route.destination = trans.carla_location_to_ros_point(self.target_waypoints[-1].location)
+        route.destination = trans.carla_location_to_ros_point(waypoints[-1].location)
         route.remaining_route_elements[-1].lane_elements[-1].has_following_lane_idx = False
 
         self.route_pub.publish(route)
