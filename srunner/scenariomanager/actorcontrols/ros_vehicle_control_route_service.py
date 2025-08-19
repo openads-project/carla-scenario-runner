@@ -63,8 +63,7 @@ class RosVehicleControlRouteService(ExternalControl):
 
     def run_step(self):
 
-        timestamp = GameTime.get_time()
-        self.node.publish_clock(timestamp)
+        pass
 
 
 class NavigationClient(Node):
@@ -76,8 +75,7 @@ class NavigationClient(Node):
         self.target_y = target_y
         self.route_triggered_flag = False
         self.initialized_position = False
-
-        self.clock_publisher = self.create_publisher(Clock, 'clock', 10)
+        self.time = Time(sec=0, nanosec=0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -93,6 +91,13 @@ class NavigationClient(Node):
             10
         )
 
+        self.clock_sub = self.create_subscription(
+            Clock,
+            "/clock",
+            self.clock_callback,
+            10
+        )
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
@@ -101,10 +106,13 @@ class NavigationClient(Node):
         # Wait for the action server to be available
         self.client.wait_for_server()
 
-    def publish_clock(self, t):
+    def clock_publisher(self, t):
         secs = int(t)
         nsecs = int((t - secs) * 1e9)
         self.clock_publisher.publish(Clock(clock=Time(sec=secs, nanosec=nsecs)))
+
+    def clock_callback(self, msg):
+        self.time = msg.clock
 
     def egodata_callback(self, msg):
         if not self.initialized_position:
@@ -138,6 +146,7 @@ class NavigationClient(Node):
         print(f"Sending goal to ({x}, {y}) with yaw {yaw}", flush=True)
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
+        point_map.header.stamp = self.time
         point_map.point = Point(x=x, y=y, z=0.0)
 
         goal_msg = PlanRoute.Goal()
