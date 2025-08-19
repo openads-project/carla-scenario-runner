@@ -8,7 +8,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 """
-ROS Vehicle Control that sends route action usable by scenario-runner
+ROS Vehicle Control that sends route action from scenario
 """
 
 import rclpy
@@ -17,7 +17,6 @@ from rclpy.node import Node
 from rosgraph_msgs.msg import Clock
 from builtin_interfaces.msg import Time
 
-import ros_compatibility as roscomp
 import threading
 
 from geometry_msgs.msg import PointStamped, Point
@@ -26,15 +25,9 @@ from trajectory_planning_msgs.msg import Trajectory
 from perception_msgs.msg import EgoData
 
 import tf2_ros
-from tf2_ros import TransformException
-
 import carla
-import time
 
-from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
-
-ROS_VERSION = roscomp.get_ros_version()
 
 
 class RosVehicleControlRouteService(ExternalControl):
@@ -43,16 +36,34 @@ class RosVehicleControlRouteService(ExternalControl):
         super().__init__(actor)
 
         print(f"RosVehicleControlRouteService args: {args}", flush=True)
-        target_x = float(args["target_x"])
-        target_y = float(args["target_y"])
+
+        params = {}
+        params["ego_data_topic"] = "/simulation/ego_data"
+        params["trajectory_topic"] = "/planning/drivable_trajectory"
+        params["route_action"] = "/lanelet2_route_planning/plan_route"
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
             actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))
 
+        if "ego_data_topic_name" in args:
+            params["ego_data_topic"] = args["ego_data_topic_name"]
+
+        if "trajectory_topic_name" in args:
+            params["trajectory_topic"] = args["trajectory_topic_name"]
+
+        if "route_action_name" in args:
+            params["route_action"] = args["route_action_name"]
+
+        role_name = actor.attributes["role_name"]
+
+        target_x = float(args["target_x"])
+        target_y = float(args["target_y"])
+
         if not rclpy.ok():
             rclpy.init()
-        self.node = NavigationClient(target_x, target_y)
+
+        self.node = NavigationClient(role_name, params, target_x, target_y)
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
@@ -67,26 +78,26 @@ class RosVehicleControlRouteService(ExternalControl):
 
 
 class NavigationClient(Node):
-    def __init__(self, target_x, target_y):
-        super().__init__("navigation_client")
-        print("NavigationClient initialized", flush=True)
+    def __init__(self, role_name, params, target_x, target_y):
+        super().__init__('ros_agent_{}'.format(role_name))
 
         self.target_x = target_x
         self.target_y = target_y
+
         self.route_triggered_flag = False
         self.initialized_position = False
         self.time = Time(sec=0, nanosec=0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
-            "/planning/drivable_trajectory",  # oder was dein Topic ist
+            params["trajectory_topic"],
             self.trajectory_callback,
             10
         )
 
         self.egodata_sub = self.create_subscription(
             EgoData,
-            "/simulation/ego_data",
+            params["ego_data_topic"],
             self.egodata_callback,
             10
         )
@@ -101,15 +112,10 @@ class NavigationClient(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.client = ActionClient(self, PlanRoute, '/lanelet2_route_planning/plan_route')
+        self.route_action_client = ActionClient(self, PlanRoute, params["route_action"])
 
-        # Wait for the action server to be available
-        self.client.wait_for_server()
-
-    def clock_publisher(self, t):
-        secs = int(t)
-        nsecs = int((t - secs) * 1e9)
-        self.clock_publisher.publish(Clock(clock=Time(sec=secs, nanosec=nsecs)))
+        # wait for the action server to be available
+        self.route_action_client.wait_for_server()
 
     def clock_callback(self, msg):
         self.time = msg.clock
@@ -119,6 +125,7 @@ class NavigationClient(Node):
             x = msg.state.continuous_state[0]
             y = msg.state.continuous_state[1]
 
+            # default launch position is at (x,y) = (1000, 1000)
             if x < 995 or x > 1005 or y < 995 or y > 1005:
                 self.initialized_position = True
                 print(f"Initialized position at ({x}, {y})", flush=True)
@@ -137,13 +144,14 @@ class NavigationClient(Node):
         if msg.standstill and not self.route_triggered_flag:
             print("Received first not standstill trajectory ...", flush=True)
 
-            self.send_goal(x=self.target_x, y=self.target_y, yaw=0.0)
-
+            self.call_action(self.target_x, self.target_y, yaw=0.0)
             self.route_triggered_flag = True
 
-    def send_goal(self, x, y, yaw):
+    def call_action(self, x, y, yaw):
         """Send a navigation goal to the action server"""
-        print(f"Sending goal to ({x}, {y}) with yaw {yaw}", flush=True)
+
+        print(f"Sending goal destination ({x}, {y}) with yaw {yaw}", flush=True)
+
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
         point_map.header.stamp = self.time
@@ -152,10 +160,10 @@ class NavigationClient(Node):
         goal_msg = PlanRoute.Goal()
         goal_msg.destination = point_map
 
-        send_goal_future = self.client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
-        send_goal_future.add_done_callback(self.goal_response_callback)
+        send_goal_future = self.route_action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
+        send_goal_future.add_done_callback(self.action_response_callback)
 
-    def goal_response_callback(self, future):
+    def action_response_callback(self, future):
         """Called when the goal is accepted or rejected"""
         goal_handle = future.result()
         if not goal_handle.accepted:
