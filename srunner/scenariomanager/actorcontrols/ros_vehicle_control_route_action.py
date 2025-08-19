@@ -30,12 +30,12 @@ import carla
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
 
 
-class RosVehicleControlRouteService(ExternalControl):
+class RosVehicleControlRouteAction(ExternalControl):
 
     def __init__(self, actor, args=None):
         super().__init__(actor)
 
-        print(f"RosVehicleControlRouteService args: {args}", flush=True)
+        print(f"RosVehicleControlRouteAction args: {args}", flush=True)
 
         params = {}
         params["ego_data_topic"] = "/simulation/ego_data"
