@@ -41,7 +41,7 @@ class ScenarioManager(object):
     5. If needed, cleanup with manager.stop_scenario()
     """
 
-    def __init__(self, debug_mode=False, sync_mode=False, timeout=2.0, enforce_realtime=False):
+    def __init__(self, debug_mode=False, sync_mode=False, timeout=2.0, rt_factor=1.0):
         """
         Setups up the parameters, which will be filled at load_scenario()
 
@@ -64,8 +64,8 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
 
-        self.runtime_timestamp = time.time()        
-        self.enforce_realtime = enforce_realtime
+        self.runtime_timestamp = time.time()
+        self.rt_factor = rt_factor
 
     def _reset(self):
         """
@@ -186,13 +186,15 @@ class ScenarioManager(object):
                 self._running = False
 
         if self._sync_mode and self._running and self._watchdog.get_status():
-            if self._sync_mode and self.enforce_realtime:
-                dt = time.time() - self.runtime_timestamp
-                if dt < timestamp.delta_seconds:
-                    time.sleep(timestamp.delta_seconds - dt)
+            if self._sync_mode:
+                current_dt = time.time() - self.runtime_timestamp
+                target_dt = timestamp.delta_seconds / self.rt_factor
+                if current_dt < target_dt:
+                    time.sleep(target_dt - current_dt)
                 else:
-                    print("ScenarioManager: Realtime can't be reached. Execution is delayed by {:.3f}s".format(dt - timestamp.delta_seconds))
+                    print("ScenarioManager: Realtime Factor can't be reached. Execution is delayed by {:.3f}s".format(current_dt - target_dt))
                 self.runtime_timestamp = time.time()
+
             CarlaDataProvider.get_world().tick()
 
     def get_running_status(self):
