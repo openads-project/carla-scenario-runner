@@ -630,7 +630,7 @@ def main():
     parser.add_argument('--randomize', action="store_true", help='Scenario parameters are randomized')
     parser.add_argument('--repetitions', default=1, type=int, help='Number of scenario executions')
     parser.add_argument('--waitForEgo', action="store_true", help='Connect the scenario to an existing ego vehicle')
-    parser.add_argument('--rtFactor', default=1.0, help='Desired realtime factor (if possible) for sync tick')
+    parser.add_argument('--rtFactor', default="1.0", help='Desired realtime factor (if possible) for sync tick')
 
     arguments = parser.parse_args()
     # pylint: enable=line-too-long

@@ -188,7 +188,7 @@ class ScenarioManager(object):
         if self._sync_mode and self._running and self._watchdog.get_status():
 
             current_dt = time.time() - self.runtime_timestamp
-            target_dt = timestamp.delta_seconds / self.rt_factor
+            target_dt = timestamp.delta_seconds / float(self.rt_factor)
             if current_dt < target_dt:
                 time.sleep(target_dt - current_dt)
             else:
