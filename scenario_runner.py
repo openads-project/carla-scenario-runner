@@ -104,7 +104,7 @@ class ScenarioRunner(object):
             self.module_agent = importlib.import_module(module_name)
 
         # Create the ScenarioManager
-        self.manager = ScenarioManager(self._args.debug, self._args.sync, self._args.timeout)
+        self.manager = ScenarioManager(self._args.debug, self._args.sync, self._args.timeout, self._args.rtFactor)
 
         # Create signal handler for SIGINT
         self._shutdown_requested = False
@@ -418,7 +418,7 @@ class ScenarioRunner(object):
             tm.set_synchronous_mode(True)
 
         # Prepare scenario
-        print("Preparing scenario: " + config.name)
+        print("Preparing scenario: " + config.name, flush=True)
         try:
             self._prepare_ego_vehicles(config.ego_vehicles)
             if self._args.openscenarios:
@@ -630,6 +630,7 @@ def main():
     parser.add_argument('--randomize', action="store_true", help='Scenario parameters are randomized')
     parser.add_argument('--repetitions', default=1, type=int, help='Number of scenario executions')
     parser.add_argument('--waitForEgo', action="store_true", help='Connect the scenario to an existing ego vehicle')
+    parser.add_argument('--rtFactor', default="1.0", help='Desired realtime factor (if possible) for sync tick')
 
     arguments = parser.parse_args()
     # pylint: enable=line-too-long

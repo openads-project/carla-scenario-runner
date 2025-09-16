@@ -41,7 +41,7 @@ class ScenarioManager(object):
     5. If needed, cleanup with manager.stop_scenario()
     """
 
-    def __init__(self, debug_mode=False, sync_mode=False, timeout=2.0):
+    def __init__(self, debug_mode=False, sync_mode=False, timeout=2.0, rt_factor=1.0):
         """
         Setups up the parameters, which will be filled at load_scenario()
 
@@ -63,6 +63,9 @@ class ScenarioManager(object):
         self.scenario_duration_game = 0.0
         self.start_system_time = None
         self.end_system_time = None
+
+        self.runtime_timestamp = time.time()
+        self.rt_factor = rt_factor
 
     def _reset(self):
         """
@@ -117,7 +120,7 @@ class ScenarioManager(object):
         """
         Trigger the start of the scenario and wait for it to finish/fail
         """
-        print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name))
+        print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name), flush=True)
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
 
@@ -183,6 +186,22 @@ class ScenarioManager(object):
                 self._running = False
 
         if self._sync_mode and self._running and self._watchdog.get_status():
+            t = time.time()
+            dt = t - self.runtime_timestamp
+            target_dt = timestamp.delta_seconds / float(self.rt_factor)
+            if dt < target_dt:
+                time.sleep(target_dt - dt)
+            else:
+                # Provide detailed RTF info when running behind schedule
+                current_delay = dt - target_dt
+                current_rtf = timestamp.delta_seconds / dt
+                print(
+                    "ScenarioManager: Realtime factor {:.3f} / {:.3f} (delayed {:.3f}s)".format(
+                        current_rtf, float(self.rt_factor), current_delay
+                    )
+                )
+            self.runtime_timestamp = t
+
             CarlaDataProvider.get_world().tick()
 
     def get_running_status(self):
