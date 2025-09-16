@@ -186,14 +186,21 @@ class ScenarioManager(object):
                 self._running = False
 
         if self._sync_mode and self._running and self._watchdog.get_status():
-
-            current_dt = time.time() - self.runtime_timestamp
+            t = time.time()
+            dt = t - self.runtime_timestamp
             target_dt = timestamp.delta_seconds / float(self.rt_factor)
-            if current_dt < target_dt:
-                time.sleep(target_dt - current_dt)
+            if dt < target_dt:
+                time.sleep(target_dt - dt)
             else:
-                print("ScenarioManager: Realtime Factor can't be reached. Execution is delayed by {:.3f}s".format(current_dt - target_dt))
-            self.runtime_timestamp = time.time()
+                # Provide detailed RTF info when running behind schedule
+                current_delay = dt - target_dt
+                current_rtf = timestamp.delta_seconds / dt
+                print(
+                    "ScenarioManager: Realtime factor {:.3f} / {:.3f} (delayed {:.3f}s)".format(
+                        current_rtf, float(self.rt_factor), current_delay
+                    )
+                )
+            self.runtime_timestamp = t
 
             CarlaDataProvider.get_world().tick()
 
