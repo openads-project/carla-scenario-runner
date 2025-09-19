@@ -44,7 +44,9 @@ class RosVehicleControlRouteAction(ExternalControl):
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
-            actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))
+            actor_tf = actor.get_transform()
+            target_velocity = actor_tf.transform_vector(carla.Vector3D(self._initial_speed, 0, 0))
+            actor.set_target_velocity(target_velocity)
 
         if "ego_data_topic_name" in args:
             params["ego_data_topic"] = args["ego_data_topic_name"]
