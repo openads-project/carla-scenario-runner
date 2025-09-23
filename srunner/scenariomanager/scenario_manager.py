@@ -186,8 +186,7 @@ class ScenarioManager(object):
                 self._running = False
 
         if self._sync_mode and self._running and self._watchdog.get_status():
-            t = time.time()
-            dt = t - self.runtime_timestamp
+            dt = time.time() - self.runtime_timestamp
             target_dt = timestamp.delta_seconds / float(self.rt_factor)
             if dt < target_dt:
                 time.sleep(target_dt - dt)
@@ -200,7 +199,7 @@ class ScenarioManager(object):
                         current_rtf, float(self.rt_factor), current_delay
                     )
                 )
-            self.runtime_timestamp = t
+            self.runtime_timestamp = time.time()
 
             CarlaDataProvider.get_world().tick()
 
