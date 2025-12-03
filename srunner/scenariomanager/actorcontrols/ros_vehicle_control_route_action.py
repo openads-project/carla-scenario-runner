@@ -40,7 +40,7 @@ class RosVehicleControlRouteAction(ExternalControl):
         params = {}
         params["ego_data_topic"] = "/simulation/ego_data"
         params["trajectory_topic"] = "/planning/drivable_trajectory"
-        params["route_action"] = "/lanelet2_route_planning/plan_route"
+        params["route_action"] = "/planning/lanelet2_route_planning/plan_route"
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
