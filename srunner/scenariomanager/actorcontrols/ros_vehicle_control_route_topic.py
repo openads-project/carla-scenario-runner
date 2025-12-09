@@ -15,6 +15,7 @@ ROS Vehicle Control that sends route topic from scenario
 import math
 import rclpy
 from rclpy.node import Node
+from rclpy.duration import Duration
 from rosgraph_msgs.msg import Clock
 from builtin_interfaces.msg import Time
 
@@ -109,6 +110,7 @@ class NavigationClient(Node):
         self.route_triggered_flag = False
         self.trajectory_topic = params["trajectory_topic"]
         self.route_topic = params["route_topic"]
+        self.transform_timeout = Duration(seconds=0.5)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -138,7 +140,8 @@ class NavigationClient(Node):
         try:
             self.tf_buffer.lookup_transform(
                 'map', 'base_link',
-                rclpy.time.Time()
+                rclpy.time.Time(),
+                timeout=self.transform_timeout
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
