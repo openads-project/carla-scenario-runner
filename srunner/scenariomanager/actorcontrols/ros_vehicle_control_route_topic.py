@@ -61,10 +61,18 @@ class RosVehicleControlRouteTopic(ExternalControl):
             rclpy.init()
 
         self.node = NavigationClient(role_name, params, waypoints)
+        self.node.get_logger().info(
+            "Route topic client initialized for role '%s'; "
+            "trajectory_topic='%s', route_topic='%s'",
+            role_name,
+            params["trajectory_topic"],
+            params["route_topic"]
+        )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
         self.ros_thread.start()
+        self.node.get_logger().info("Started ROS 2 spinning thread for NavigationClient")
 
     def reset(self):
         pass
@@ -101,10 +109,12 @@ class NavigationClient(Node):
         self.waypoints = waypoints
 
         self.route_triggered_flag = False
+        self.trajectory_topic = params["trajectory_topic"]
+        self.route_topic = params["route_topic"]
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
-            params["trajectory_topic"],
+            self.trajectory_topic,
             self.trajectory_callback,
             10
         )
@@ -114,12 +124,18 @@ class NavigationClient(Node):
 
         self.route_pub = self.create_publisher(
             Route,
-            params["route_topic"],
+            self.route_topic,
             10
+        )
+        self.get_logger().info(
+            "Subscribing to trajectory topic '%s' and publishing routes to '%s'",
+            self.trajectory_topic,
+            self.route_topic
         )
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
+            self.get_logger().debug("Scenario not running, ignoring trajectory update")
             return
 
         try:
@@ -129,11 +145,14 @@ class NavigationClient(Node):
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
-            print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
+            self.get_logger().warning(
+                "Transform from map to base_link not available yet, waiting for carla-its-adapter: %s",
+                e
+            )
             return
 
         if msg.standstill and not self.route_triggered_flag:
-            print("Received first not standstill trajectory ...", flush=True)
+            self.get_logger().info("Received first non-standstill trajectory, publishing route once")
 
             self.send_route(self.waypoints)
             self.route_triggered_flag = True
@@ -142,7 +161,7 @@ class NavigationClient(Node):
     def send_route(self, waypoints):
         """Generate and publish a route message"""
 
-        print(f"Sending route message", flush=True)
+        self.get_logger().info("Sending route message with %d waypoint(s) to '%s'", len(waypoints), self.route_topic)
 
         route = Route()
         route.header.frame_id = "carla_map"

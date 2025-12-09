@@ -62,10 +62,20 @@ class RosVehicleControlRouteAction(ExternalControl):
             rclpy.init()
 
         self.node = NavigationClient(role_name, params, target_x, target_y)
+        self.node.get_logger().info(
+            "Route action client initialized for role '%s' (target=(%.2f, %.2f), "
+            "trajectory_topic='%s', route_action='%s')",
+            role_name,
+            target_x,
+            target_y,
+            params["trajectory_topic"],
+            params["route_action"]
+        )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
         self.ros_thread.start()
+        self.node.get_logger().info("Started ROS 2 spinning thread for NavigationClient")
 
     def reset(self):
         pass
@@ -97,10 +107,17 @@ class NavigationClient(Node):
         self.route_action_client = ActionClient(self, PlanRoute, params["route_action"])
 
         # wait for the action server to be available
+        self.get_logger().info(
+            "Subscribing to trajectory topic '%s' and waiting for action server '%s'",
+            params["trajectory_topic"],
+            params["route_action"]
+        )
         self.route_action_client.wait_for_server()
+        self.get_logger().info("Route action server '%s' available", params["route_action"])
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
+            self.get_logger().warning("Scenario not running, ignoring trajectory update")
             return
 
         try:
@@ -110,11 +127,14 @@ class NavigationClient(Node):
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
-            print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
+            self.get_logger().warning(
+                "Transform from map to base_link not available yet, waiting for carla-its-adapter: %s",
+                e
+            )
             return
 
         if self.initialized_position and msg.standstill and not self.route_triggered_flag:
-            print("Received first not standstill trajectory ...", flush=True)
+            self.get_logger().info("Received first non-standstill trajectory, triggering route action")
 
             self.call_action(self.target_x, self.target_y, yaw=0.0)
             self.route_triggered_flag = True
@@ -122,7 +142,7 @@ class NavigationClient(Node):
     def call_action(self, x, y, yaw):
         """Send a navigation goal to the action server"""
 
-        print(f"Sending goal destination ({x}, {y}) with yaw {yaw}", flush=True)
+        self.get_logger().info("Sending goal destination (%s, %s) with yaw %.2f", x, y, yaw)
 
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
@@ -139,21 +159,25 @@ class NavigationClient(Node):
         """Called when the goal is accepted or rejected"""
         goal_handle = future.result()
         if not goal_handle.accepted:
-            print("Goal rejected :(", flush=True)
+            self.get_logger().warning("Route action goal rejected")
             self.route_triggered_flag = False
             return
 
-        print("Goal accepted!", flush=True)
+        self.get_logger().info("Route action goal accepted")
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.result_callback)
 
     def feedback_callback(self, feedback_msg):
         """Process feedback from the action server"""
         feedback = feedback_msg.feedback
-        print(f"Feedback: distance remaining = {feedback.distance_remaining}", flush=True)
+        self.get_logger().debug(
+            "Route action feedback: distance remaining = %s",
+            feedback.distance_remaining
+        )
 
     def result_callback(self, future):
         """Called when the goal is completed"""
         result = future.result().result
-        print(f"Goal completed with status: {result}", flush=True)
+        self.get_logger().info("Route action goal completed with status: %s", result)
+        self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
