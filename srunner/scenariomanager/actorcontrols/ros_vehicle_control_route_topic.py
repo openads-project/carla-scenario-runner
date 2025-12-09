@@ -101,19 +101,11 @@ class NavigationClient(Node):
         self.waypoints = waypoints
 
         self.route_triggered_flag = False
-        self.time = Time(sec=0, nanosec=0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
             params["trajectory_topic"],
             self.trajectory_callback,
-            10
-        )
-
-        self.clock_sub = self.create_subscription(
-            Clock,
-            "/clock",
-            self.clock_callback,
             10
         )
 
@@ -125,9 +117,6 @@ class NavigationClient(Node):
             params["route_topic"],
             10
         )
-
-    def clock_callback(self, msg):
-        self.time = msg.clock
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
@@ -157,7 +146,7 @@ class NavigationClient(Node):
 
         route = Route()
         route.header.frame_id = "carla_map"
-        route.header.stamp = self.time
+        route.header.stamp = Time(sec=0, nanosec=0)
 
         last_ros_point = None
         s = 0.0

@@ -83,19 +83,11 @@ class NavigationClient(Node):
         self.target_y = target_y
 
         self.route_triggered_flag = False
-        self.time = Time(sec=0, nanosec=0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
             params["trajectory_topic"],
             self.trajectory_callback,
-            10
-        )
-
-        self.clock_sub = self.create_subscription(
-            Clock,
-            "/clock",
-            self.clock_callback,
             10
         )
 
@@ -106,9 +98,6 @@ class NavigationClient(Node):
 
         # wait for the action server to be available
         self.route_action_client.wait_for_server()
-
-    def clock_callback(self, msg):
-        self.time = msg.clock
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
@@ -137,7 +126,7 @@ class NavigationClient(Node):
 
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
-        point_map.header.stamp = self.time
+        point_map.header.stamp = Time(sec=0, nanosec=0)
         point_map.point = Point(x=x, y=y, z=0.0)
 
         goal_msg = PlanRoute.Goal()
