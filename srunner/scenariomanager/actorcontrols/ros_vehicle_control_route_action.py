@@ -143,7 +143,7 @@ class NavigationClient(Node):
             print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
             return
 
-        if msg.standstill and not self.route_triggered_flag:
+        if self.initialized_position and msg.standstill and not self.route_triggered_flag:
             print("Received first not standstill trajectory ...", flush=True)
 
             self.call_action(self.target_x, self.target_y, yaw=0.0)
