@@ -62,11 +62,9 @@ class RosVehicleControlRouteTopic(ExternalControl):
 
         self.node = NavigationClient(role_name, params, waypoints)
         self.node.get_logger().info(
-            "Route topic client initialized for role '%s'; "
-            "trajectory_topic='%s', route_topic='%s'",
-            role_name,
-            params["trajectory_topic"],
-            params["route_topic"]
+            f"Route topic client initialized for role '{role_name}'; "
+            f"trajectory_topic='{params['trajectory_topic']}', "
+            f"route_topic='{params['route_topic']}'"
         )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
@@ -128,9 +126,8 @@ class NavigationClient(Node):
             10
         )
         self.get_logger().info(
-            "Subscribing to trajectory topic '%s' and publishing routes to '%s'",
-            self.trajectory_topic,
-            self.route_topic
+            f"Subscribing to trajectory topic '{self.trajectory_topic}' "
+            f"and publishing routes to '{self.route_topic}'"
         )
 
     def trajectory_callback(self, msg):
@@ -146,8 +143,7 @@ class NavigationClient(Node):
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
             self.get_logger().warning(
-                "Transform from map to base_link not available yet, waiting for carla-its-adapter: %s",
-                e
+                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
             )
             return
 
@@ -161,7 +157,9 @@ class NavigationClient(Node):
     def send_route(self, waypoints):
         """Generate and publish a route message"""
 
-        self.get_logger().info("Sending route message with %d waypoint(s) to '%s'", len(waypoints), self.route_topic)
+        self.get_logger().info(
+            f"Sending route message with {len(waypoints)} waypoint(s) to '{self.route_topic}'"
+        )
 
         route = Route()
         route.header.frame_id = "carla_map"

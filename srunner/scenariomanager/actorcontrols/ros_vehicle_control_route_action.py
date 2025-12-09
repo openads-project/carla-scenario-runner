@@ -63,13 +63,10 @@ class RosVehicleControlRouteAction(ExternalControl):
 
         self.node = NavigationClient(role_name, params, target_x, target_y)
         self.node.get_logger().info(
-            "Route action client initialized for role '%s' (target=(%.2f, %.2f), "
-            "trajectory_topic='%s', route_action='%s')",
-            role_name,
-            target_x,
-            target_y,
-            params["trajectory_topic"],
-            params["route_action"]
+            f"Route action client initialized for role '{role_name}' "
+            f"(target=({target_x:.2f}, {target_y:.2f}), "
+            f"trajectory_topic='{params['trajectory_topic']}', "
+            f"route_action='{params['route_action']}')"
         )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
@@ -93,6 +90,7 @@ class NavigationClient(Node):
         self.target_y = target_y
 
         self.route_triggered_flag = False
+        self.initialized_position = True
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -108,12 +106,11 @@ class NavigationClient(Node):
 
         # wait for the action server to be available
         self.get_logger().info(
-            "Subscribing to trajectory topic '%s' and waiting for action server '%s'",
-            params["trajectory_topic"],
-            params["route_action"]
+            f"Subscribing to trajectory topic '{params['trajectory_topic']}' "
+            f"and waiting for action server '{params['route_action']}'"
         )
         self.route_action_client.wait_for_server()
-        self.get_logger().info("Route action server '%s' available", params["route_action"])
+        self.get_logger().info(f"Route action server '{params['route_action']}' available")
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
@@ -128,8 +125,7 @@ class NavigationClient(Node):
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
             self.get_logger().warning(
-                "Transform from map to base_link not available yet, waiting for carla-its-adapter: %s",
-                e
+                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
             )
             return
 
@@ -142,7 +138,7 @@ class NavigationClient(Node):
     def call_action(self, x, y, yaw):
         """Send a navigation goal to the action server"""
 
-        self.get_logger().info("Sending goal destination (%s, %s) with yaw %.2f", x, y, yaw)
+        self.get_logger().info(f"Sending goal destination ({x}, {y}) with yaw {yaw:.2f}")
 
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
@@ -171,13 +167,12 @@ class NavigationClient(Node):
         """Process feedback from the action server"""
         feedback = feedback_msg.feedback
         self.get_logger().debug(
-            "Route action feedback: distance remaining = %s",
-            feedback.distance_remaining
+            f"Route action feedback: distance remaining = {feedback.distance_remaining}"
         )
 
     def result_callback(self, future):
         """Called when the goal is completed"""
         result = future.result().result
-        self.get_logger().info("Route action goal completed with status: %s", result)
+        self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
