@@ -91,7 +91,6 @@ class NavigationClient(Node):
         self.target_y = target_y
 
         self.route_triggered_flag = False
-        self.initialized_position = True
         self.transform_timeout = Duration(seconds=0.5)
 
         self.trajectory_sub = self.create_subscription(
@@ -132,7 +131,7 @@ class NavigationClient(Node):
             )
             return
 
-        if self.initialized_position and msg.standstill and not self.route_triggered_flag:
+        if msg.standstill and not self.route_triggered_flag:
             self.get_logger().info("Received first non-standstill trajectory, triggering route action")
 
             self.call_action(self.target_x, self.target_y, yaw=0.0)
