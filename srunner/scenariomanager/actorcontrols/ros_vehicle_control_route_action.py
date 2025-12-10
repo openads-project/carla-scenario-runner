@@ -14,6 +14,7 @@ ROS Vehicle Control that sends route action from scenario
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.duration import Duration
 from rosgraph_msgs.msg import Clock
 from builtin_interfaces.msg import Time
 
@@ -22,12 +23,12 @@ import threading
 from geometry_msgs.msg import PointStamped, Point
 from route_planning_msgs.action import PlanRoute
 from trajectory_planning_msgs.msg import Trajectory
-from perception_msgs.msg import EgoData
 
 import tf2_ros
 import carla
 
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 
 class RosVehicleControlRouteAction(ExternalControl):
@@ -38,7 +39,6 @@ class RosVehicleControlRouteAction(ExternalControl):
         print(f"RosVehicleControlRouteAction args: {args}", flush=True)
 
         params = {}
-        params["ego_data_topic"] = "/simulation/ego_data"
         params["trajectory_topic"] = "/planning/drivable_trajectory"
         params["route_action"] = "/planning/lanelet2_route_planning/plan_route"
 
@@ -47,9 +47,6 @@ class RosVehicleControlRouteAction(ExternalControl):
             actor_tf = actor.get_transform()
             target_velocity = actor_tf.transform_vector(carla.Vector3D(self._initial_speed, 0, 0))
             actor.set_target_velocity(target_velocity)
-
-        if "ego_data_topic_name" in args:
-            params["ego_data_topic"] = args["ego_data_topic_name"]
 
         if "trajectory_topic_name" in args:
             params["trajectory_topic"] = args["trajectory_topic_name"]
@@ -66,10 +63,17 @@ class RosVehicleControlRouteAction(ExternalControl):
             rclpy.init()
 
         self.node = NavigationClient(role_name, params, target_x, target_y)
+        self.node.get_logger().info(
+            f"Route action client initialized for role '{role_name}' "
+            f"(target=({target_x:.2f}, {target_y:.2f}), "
+            f"trajectory_topic='{params['trajectory_topic']}', "
+            f"route_action='{params['route_action']}')"
+        )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
         self.ros_thread.start()
+        self.node.get_logger().info("Started ROS 2 spinning thread for NavigationClient")
 
     def reset(self):
         pass
@@ -87,27 +91,12 @@ class NavigationClient(Node):
         self.target_y = target_y
 
         self.route_triggered_flag = False
-        self.initialized_position = False
-        self.time = Time(sec=0, nanosec=0)
+        self.transform_timeout = Duration(seconds=0.5)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
             params["trajectory_topic"],
             self.trajectory_callback,
-            10
-        )
-
-        self.egodata_sub = self.create_subscription(
-            EgoData,
-            params["ego_data_topic"],
-            self.egodata_callback,
-            10
-        )
-
-        self.clock_sub = self.create_subscription(
-            Clock,
-            "/clock",
-            self.clock_callback,
             10
         )
 
@@ -117,34 +106,33 @@ class NavigationClient(Node):
         self.route_action_client = ActionClient(self, PlanRoute, params["route_action"])
 
         # wait for the action server to be available
+        self.get_logger().info(
+            f"Subscribing to trajectory topic '{params['trajectory_topic']}' "
+            f"and waiting for action server '{params['route_action']}'"
+        )
         self.route_action_client.wait_for_server()
-
-    def clock_callback(self, msg):
-        self.time = msg.clock
-
-    def egodata_callback(self, msg):
-        if not self.initialized_position:
-            x = msg.state.continuous_state[0]
-            y = msg.state.continuous_state[1]
-
-            # default launch position is at (x,y) = (1000, 1000)
-            if x < 995 or x > 1005 or y < 995 or y > 1005:
-                self.initialized_position = True
-                print(f"Initialized position at ({x}, {y})", flush=True)
+        self.get_logger().info(f"Route action server '{params['route_action']}' available")
 
     def trajectory_callback(self, msg):
+        if not CarlaDataProvider.is_scenario_running():
+            self.get_logger().warning("Scenario not running, ignoring trajectory update")
+            return
+
         try:
             self.tf_buffer.lookup_transform(
                 'map', 'base_link',
-                rclpy.time.Time()
+                rclpy.time.Time(),
+                timeout=self.transform_timeout
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
-            print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
+            self.get_logger().warning(
+                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
+            )
             return
 
         if msg.standstill and not self.route_triggered_flag:
-            print("Received first not standstill trajectory ...", flush=True)
+            self.get_logger().info("Received first non-standstill trajectory, triggering route action")
 
             self.call_action(self.target_x, self.target_y, yaw=0.0)
             self.route_triggered_flag = True
@@ -152,11 +140,11 @@ class NavigationClient(Node):
     def call_action(self, x, y, yaw):
         """Send a navigation goal to the action server"""
 
-        print(f"Sending goal destination ({x}, {y}) with yaw {yaw}", flush=True)
+        self.get_logger().info(f"Sending goal destination ({x}, {y}) with yaw {yaw:.2f}")
 
         point_map = PointStamped()
         point_map.header.frame_id = "carla_map"
-        point_map.header.stamp = self.time
+        point_map.header.stamp = Time(sec=0, nanosec=0)
         point_map.point = Point(x=x, y=y, z=0.0)
 
         goal_msg = PlanRoute.Goal()
@@ -169,21 +157,24 @@ class NavigationClient(Node):
         """Called when the goal is accepted or rejected"""
         goal_handle = future.result()
         if not goal_handle.accepted:
-            print("Goal rejected :(", flush=True)
+            self.get_logger().warning("Route action goal rejected")
             self.route_triggered_flag = False
             return
 
-        print("Goal accepted!", flush=True)
+        self.get_logger().info("Route action goal accepted")
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.result_callback)
 
     def feedback_callback(self, feedback_msg):
         """Process feedback from the action server"""
         feedback = feedback_msg.feedback
-        print(f"Feedback: distance remaining = {feedback.distance_remaining}", flush=True)
+        self.get_logger().debug(
+            f"Route action feedback: distance remaining = {feedback.distance_remaining}"
+        )
 
     def result_callback(self, future):
         """Called when the goal is completed"""
         result = future.result().result
-        print(f"Goal completed with status: {result}", flush=True)
+        self.get_logger().info(f"Route action goal completed with status: {result}")
+        self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()

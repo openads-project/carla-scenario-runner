@@ -12,8 +12,10 @@ ROS Vehicle Control that sends route topic from scenario
 """
 
 
+import math
 import rclpy
 from rclpy.node import Node
+from rclpy.duration import Duration
 from rosgraph_msgs.msg import Clock
 from builtin_interfaces.msg import Time
 
@@ -21,7 +23,6 @@ import threading
 
 from route_planning_msgs.msg import Route, RouteElement, LaneElement
 from trajectory_planning_msgs.msg import Trajectory
-from perception_msgs.msg import EgoData
 
 import tf2_ros
 import carla
@@ -29,6 +30,7 @@ import carla_common.transforms as trans
 
 
 from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 
 class RosVehicleControlRouteTopic(ExternalControl):
@@ -39,16 +41,12 @@ class RosVehicleControlRouteTopic(ExternalControl):
         print(f"RosVehicleControlRouteTopic args: {args}", flush=True)
 
         params = {}
-        params["ego_data_topic"] = "/simulation/ego_data"
         params["trajectory_topic"] = "/planning/drivable_trajectory"
         params["route_topic"] = "/carla_scenario_runner/route"
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
             actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))  
-
-        if "ego_data_topic_name" in args:
-            params["ego_data_topic"] = args["ego_data_topic_name"]
 
         if "trajectory_topic_name" in args:
             params["trajectory_topic"] = args["trajectory_topic_name"]
@@ -64,10 +62,16 @@ class RosVehicleControlRouteTopic(ExternalControl):
             rclpy.init()
 
         self.node = NavigationClient(role_name, params, waypoints)
+        self.node.get_logger().info(
+            f"Route topic client initialized for role '{role_name}'; "
+            f"trajectory_topic='{params['trajectory_topic']}', "
+            f"route_topic='{params['route_topic']}'"
+        )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
         self.ros_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
         self.ros_thread.start()
+        self.node.get_logger().info("Started ROS 2 spinning thread for NavigationClient")
 
     def reset(self):
         pass
@@ -104,27 +108,14 @@ class NavigationClient(Node):
         self.waypoints = waypoints
 
         self.route_triggered_flag = False
-        self.initialized_position = False
-        self.time = Time(sec=0, nanosec=0)
+        self.trajectory_topic = params["trajectory_topic"]
+        self.route_topic = params["route_topic"]
+        self.transform_timeout = Duration(seconds=0.5)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
-            params["trajectory_topic"],
+            self.trajectory_topic,
             self.trajectory_callback,
-            10
-        )
-
-        self.egodata_sub = self.create_subscription(
-            EgoData,
-            params["ego_data_topic"],
-            self.egodata_callback,
-            10
-        )
-
-        self.clock_sub = self.create_subscription(
-            Clock,
-            "/clock",
-            self.clock_callback,
             10
         )
 
@@ -133,36 +124,34 @@ class NavigationClient(Node):
 
         self.route_pub = self.create_publisher(
             Route,
-            params["route_topic"],
+            self.route_topic,
             10
         )
-
-    def clock_callback(self, msg):
-        self.time = msg.clock
-
-    def egodata_callback(self, msg):
-        if not self.initialized_position:
-            x = msg.state.continuous_state[0]
-            y = msg.state.continuous_state[1]
-
-            # default launch position is at (x,y) = (1000, 1000)
-            if x < 995 or x > 1005 or y < 995 or y > 1005:
-                self.initialized_position = True
-                print(f"Initialized position at ({x}, {y})", flush=True)
+        self.get_logger().info(
+            f"Subscribing to trajectory topic '{self.trajectory_topic}' "
+            f"and publishing routes to '{self.route_topic}'"
+        )
 
     def trajectory_callback(self, msg):
+        if not CarlaDataProvider.is_scenario_running():
+            self.get_logger().debug("Scenario not running, ignoring trajectory update")
+            return
+
         try:
             self.tf_buffer.lookup_transform(
                 'map', 'base_link',
-                rclpy.time.Time()
+                rclpy.time.Time(),
+                timeout=self.transform_timeout
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
 
-            print(f"Transform from map to base_link not exist, wait for carla-its-adapter: {e}", flush=True)
+            self.get_logger().warning(
+                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
+            )
             return
 
         if msg.standstill and not self.route_triggered_flag:
-            print("Received first not standstill trajectory ...", flush=True)
+            self.get_logger().info("Received first non-standstill trajectory, publishing route once")
 
             self.send_route(self.waypoints)
             self.route_triggered_flag = True
@@ -171,11 +160,13 @@ class NavigationClient(Node):
     def send_route(self, waypoints):
         """Generate and publish a route message"""
 
-        print(f"Sending route message", flush=True)
+        self.get_logger().info(
+            f"Sending route message with {len(waypoints)} waypoint(s) to '{self.route_topic}'"
+        )
 
         route = Route()
         route.header.frame_id = "carla_map"
-        route.header.stamp = self.time
+        route.header.stamp = Time(sec=0, nanosec=0)
 
         last_ros_point = None
         s = 0.0

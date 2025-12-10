@@ -78,6 +78,7 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
         GameTime.restart()
+        CarlaDataProvider.set_scenario_running(False)
 
     def cleanup(self):
         """
@@ -126,6 +127,7 @@ class ScenarioManager(object):
 
         self._watchdog = Watchdog(float(self._timeout))
         self._watchdog.start()
+        CarlaDataProvider.set_scenario_running(True)
         self._running = True
 
         while self._running:
@@ -138,6 +140,7 @@ class ScenarioManager(object):
             if timestamp:
                 self._tick_scenario(timestamp)
 
+        CarlaDataProvider.set_scenario_running(False)
         self.cleanup()
 
         self.end_system_time = time.time()
@@ -215,6 +218,7 @@ class ScenarioManager(object):
         This function is used by the overall signal handler to terminate the scenario execution
         """
         self._running = False
+        CarlaDataProvider.set_scenario_running(False)
 
     def analyze_scenario(self, stdout, filename, junit, json):
         """

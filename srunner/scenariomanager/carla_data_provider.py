@@ -69,6 +69,7 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
     _local_planner = None
     _grp = None
     _runtime_init_flag = False
+    _scenario_running = False
     _lock = threading.Lock()
 
     @staticmethod
@@ -297,6 +298,21 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
         @return true if runtime init mode is used
         """
         return CarlaDataProvider._runtime_init_flag
+
+    @staticmethod
+    def set_scenario_running(flag):
+        """
+        Mark whether a scenario is currently running. Exposed so controllers can
+        defer actions until the ScenarioManager has started ticking.
+        """
+        CarlaDataProvider._scenario_running = flag
+
+    @staticmethod
+    def is_scenario_running():
+        """
+        @return true if a scenario is currently running
+        """
+        return CarlaDataProvider._scenario_running
 
     @staticmethod
     def find_weather_presets():
@@ -995,6 +1011,7 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
         CarlaDataProvider._rng = random.RandomState(CarlaDataProvider._random_seed)
         CarlaDataProvider._grp = None
         CarlaDataProvider._runtime_init_flag = False
+        CarlaDataProvider._scenario_running = False
 
     @property
     def world(self):
