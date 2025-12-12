@@ -768,8 +768,8 @@ class ChangeActorWaypoints(AtomicBehavior):
         self._is_osc1 = is_osc1
         self._initial_timestep = True
 
-        if len(self._waypoints) != len(self._times):
-            raise ValueError("Both 'waypoints' and 'times' must have the same length")
+        # if len(self._waypoints) != len(self._times):
+        #     raise ValueError("Both 'waypoints' and 'times' must have the same length")
 
         # additions for Replay to Sim (RtS) or Advanced Replay to Sim (ARtS)
         self.arts = False
