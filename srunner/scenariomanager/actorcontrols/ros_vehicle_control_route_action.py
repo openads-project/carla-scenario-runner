@@ -80,12 +80,15 @@ class RosVehicleControlRouteAction(BasicControl):
         self.node.set_goal_pose(waypoints)
         return super().update_waypoints(waypoints, start_time)
 
+    def check_reached_waypoint_goal(self):
+        return self.node.reached_goal
 
 class NavigationClient(Node):
     def __init__(self, role_name, params):
         super().__init__('ros_agent_{}'.format(role_name))
 
         self.goal_pose = None
+        self.reached_goal = False
 
         self.route_triggered_flag = False
         self.transform_timeout = Duration(seconds=0.5)
@@ -132,7 +135,8 @@ class NavigationClient(Node):
             )
             return
 
-        if msg.standstill and not self.route_triggered_flag:
+        # Trigger route action once we receive a valid (non-standstill) trajectory
+        if (not msg.standstill) and (not self.route_triggered_flag):
             self.get_logger().info("Received non-standstill trajectory, triggering route action")
 
             self.call_route_action()
@@ -149,6 +153,8 @@ class NavigationClient(Node):
             y=-waypoints[-1].location.y,
             z=0.0
         )
+        # Ensure a new goal can trigger the action again
+        self.route_triggered_flag = False
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
@@ -183,6 +189,7 @@ class NavigationClient(Node):
     def result_callback(self, future):
         """Called when the goal is completed"""
         result = future.result().result
+        self.reached_goal = True
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
