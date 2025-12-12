@@ -29,11 +29,11 @@ import carla
 import carla_common.transforms as trans
 
 
-from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
+from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 
-class RosVehicleControlRouteTopic(ExternalControl):
+class RosVehicleControlRouteTopic(BasicControl):
 
     def __init__(self, actor, args=None):
         super().__init__(actor)
@@ -46,26 +46,26 @@ class RosVehicleControlRouteTopic(ExternalControl):
 
         if "initial_speed" in args:
             self._initial_speed = float(args["initial_speed"])
-            actor.set_target_velocity(carla.Vector3D(self._initial_speed, 0, 0))  
+            actor_tf = actor.get_transform()
+            target_velocity = actor_tf.transform_vector(carla.Vector3D(self._initial_speed, 0, 0))
+            actor.set_target_velocity(target_velocity)
 
-        if "trajectory_topic_name" in args:
-            params["trajectory_topic"] = args["trajectory_topic_name"]
+        if "trajectory_topic" in args:
+            params["trajectory_topic"] = args["trajectory_topic"]
 
-        if "route_topic_name" in args:
-            params["route_topic"] = args["route_topic_name"]
+        if "route_topic" in args:
+            params["route_topic"] = args["route_topic"]
 
         role_name = actor.attributes["role_name"]
-
-        waypoints = self.get_target_waypoints(args)
 
         if not rclpy.ok():
             rclpy.init()
 
-        self.node = NavigationClient(role_name, params, waypoints)
+        self.node = NavigationClient(role_name, params)
         self.node.get_logger().info(
-            f"Route topic client initialized for role '{role_name}'; "
-            f"trajectory_topic='{params['trajectory_topic']}', "
-            f"route_topic='{params['route_topic']}'"
+            f"Route topic client initialized for role '{role_name}' "
+            f"(trajectory_topic='{params['trajectory_topic']}', "
+            f"route_topic='{params['route_topic']}')"
         )
 
         # Run ROS 2 spinning in a separate thread to avoid blocking
@@ -80,61 +80,49 @@ class RosVehicleControlRouteTopic(ExternalControl):
 
         pass
 
-    def get_target_waypoints(self, args):
-        """
-        function to get waypoints from given arguments from controller
-        waypoints are set as properties
-        format for a waypoint in openscenario file in "assigncontroller" according to example (srunner/examples/scenariocenter/inD_replay_to_sim_frankenburg_with_controller.xosc):
-        <Property name="waypoint_{number}" value="x:1.234,y:2.345,z:0.0,h:3.141592654,p:0.0,r:0.0" />
-        """
-        waypoint_list = []
-
-        for _, element in args.items():
-            if "x:" in element and "y:" in element and "z:" in element:
-                x = float(element.split(",")[0].split(":")[1])
-                y = -float(element.split(",")[1].split(":")[1])
-                z = float(element.split(",")[2].split(":")[1])
-                transform = carla.Transform(carla.Location(x, y, z))
-                waypoint_list.append(transform)
-
-        return waypoint_list
+    def update_waypoints(self, waypoints, start_time=None):
+        self.node.set_route(waypoints)
+        return super().update_waypoints(waypoints, start_time)
 
 
 class NavigationClient(Node):
 
-    def __init__(self, role_name, params, waypoints):
+    def __init__(self, role_name, params):
         super().__init__('ros_agent_{}'.format(role_name))
 
-        self.waypoints = waypoints
+        self.route = None
 
         self.route_triggered_flag = False
-        self.trajectory_topic = params["trajectory_topic"]
-        self.route_topic = params["route_topic"]
         self.transform_timeout = Duration(seconds=0.5)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
-            self.trajectory_topic,
+            params["trajectory_topic"],
             self.trajectory_callback,
+            10
+        )
+
+        self.route_pub = self.create_publisher(
+            Route,
+            params["route_topic"],
             10
         )
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.route_pub = self.create_publisher(
-            Route,
-            self.route_topic,
-            10
-        )
         self.get_logger().info(
-            f"Subscribing to trajectory topic '{self.trajectory_topic}' "
-            f"and publishing routes to '{self.route_topic}'"
+            f"Subscribing to trajectory topic '{params['trajectory_topic']}' "
+            f"and publishing routes to '{params['route_topic']}'"
         )
 
     def trajectory_callback(self, msg):
         if not CarlaDataProvider.is_scenario_running():
-            self.get_logger().debug("Scenario not running, ignoring trajectory update")
+            self.get_logger().warning("Scenario not running, ignoring trajectory update")
+            return
+
+        if not self.route:
+            self.get_logger().warning("No route available, ignoring trajectory update")
             return
 
         try:
@@ -151,18 +139,36 @@ class NavigationClient(Node):
             return
 
         if msg.standstill and not self.route_triggered_flag:
-            self.get_logger().info("Received first non-standstill trajectory, publishing route once")
+            self.get_logger().info("Received non-standstill trajectory, publishing route once")
 
-            self.send_route(self.waypoints)
+            self.send_route()
             self.route_triggered_flag = True
 
 
-    def send_route(self, waypoints):
-        """Generate and publish a route message"""
+    def set_route(self, waypoints):
+        """Set the route based on waypoints"""
+        if not waypoints:
+            self.get_logger().warning("Empty waypoint list provided, route will not be published")
+            self.route = None
+            return
+
+        self.route = self._build_route_message(waypoints)
+        self.route_triggered_flag = False
+
+    def send_route(self):
+        """Publish a route message"""
+        if not self.route:
+            self.get_logger().warning("No route available to publish")
+            return
 
         self.get_logger().info(
-            f"Sending route message with {len(waypoints)} waypoint(s) to '{self.route_topic}'"
+            f"Sending route message"
         )
+
+        self.route_pub.publish(self.route)
+
+    def _build_route_message(self, waypoints):
+        """Generate a route message from waypoints"""
 
         route = Route()
         route.header.frame_id = "carla_map"
@@ -187,10 +193,10 @@ class NavigationClient(Node):
             route_element.s = s
             route_element.lane_elements.append(lane_element)
 
-            route.remaining_route_elements.append(route_element)
+            route.route_elements.append(route_element)
 
         # set final route information
         route.destination = trans.carla_location_to_ros_point(waypoints[-1].location)
-        route.remaining_route_elements[-1].lane_elements[-1].has_following_lane_idx = False
+        route.route_elements[-1].lane_elements[-1].has_following_lane_idx = False
 
-        self.route_pub.publish(route)
+        return route
