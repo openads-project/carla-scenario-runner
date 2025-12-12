@@ -27,12 +27,11 @@ from trajectory_planning_msgs.msg import Trajectory
 import tf2_ros
 import carla
 
-from srunner.scenariomanager.actorcontrols.external_control import ExternalControl  # pylint: disable=import-error
+from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 
-class RosVehicleControlRouteAction(ExternalControl):
-
+class RosVehicleControlRouteAction(BasicControl):
     def __init__(self, actor, args=None):
         super().__init__(actor)
 
@@ -48,11 +47,11 @@ class RosVehicleControlRouteAction(ExternalControl):
             target_velocity = actor_tf.transform_vector(carla.Vector3D(self._initial_speed, 0, 0))
             actor.set_target_velocity(target_velocity)
 
-        if "trajectory_topic_name" in args:
-            params["trajectory_topic"] = args["trajectory_topic_name"]
+        if "trajectory_topic" in args:
+            params["trajectory_topic"] = args["trajectory_topic"]
 
-        if "route_action_name" in args:
-            params["route_action"] = args["route_action_name"]
+        if "route_action" in args:
+            params["route_action"] = args["route_action"]
 
         role_name = actor.attributes["role_name"]
 
@@ -78,7 +77,7 @@ class RosVehicleControlRouteAction(ExternalControl):
         pass
 
     def update_waypoints(self, waypoints, start_time=None):
-        self.node.update_waypoints(waypoints)
+        self.node.set_goal_pose(waypoints)
         return super().update_waypoints(waypoints, start_time)
 
 
@@ -86,7 +85,7 @@ class NavigationClient(Node):
     def __init__(self, role_name, params):
         super().__init__('ros_agent_{}'.format(role_name))
 
-        self.waypoints = None
+        self.goal_pose = None
 
         self.route_triggered_flag = False
         self.transform_timeout = Duration(seconds=0.5)
@@ -115,8 +114,9 @@ class NavigationClient(Node):
         if not CarlaDataProvider.is_scenario_running():
             self.get_logger().warning("Scenario not running, ignoring trajectory update")
             return
-        if not self.waypoints:
-            self.get_logger().warning("No waypoints available, ignoring trajectory update")
+
+        if not self.goal_pose:
+            self.get_logger().warning("No goal pose available, ignoring trajectory update")
             return
 
         try:
@@ -133,23 +133,30 @@ class NavigationClient(Node):
             return
 
         if msg.standstill and not self.route_triggered_flag:
-            self.get_logger().info("Received first non-standstill trajectory, triggering route action")
+            self.get_logger().info("Received non-standstill trajectory, triggering route action")
 
-            self.call_action(self.waypoints[-1].location.x, -self.waypoints[-1].location.y, yaw=0.0)
+            self.call_route_action()
             self.route_triggered_flag = True
 
-    def call_action(self, x, y, yaw):
-        """Send a navigation goal to the action server"""
+    def set_goal_pose(self, waypoints):
+        """Set the goal pose from waypoints"""
+        self.goal_pose = PointStamped()
+        self.goal_pose.header.frame_id = "carla_map"
+        self.goal_pose.header.stamp = Time(sec=0, nanosec=0)
 
-        self.get_logger().info(f"Sending goal destination ({x}, {y}) with yaw {yaw:.2f}")
+        self.goal_pose.point = Point(
+            x=waypoints[-1].location.x,
+            y=-waypoints[-1].location.y,
+            z=0.0
+        )
 
-        point_map = PointStamped()
-        point_map.header.frame_id = "carla_map"
-        point_map.header.stamp = Time(sec=0, nanosec=0)
-        point_map.point = Point(x=x, y=y, z=0.0)
+    def call_route_action(self):
+        """Send the goal_pose to the action server"""
+
+        self.get_logger().info(f"Sending goal destination ({self.goal_pose.point.x}, {self.goal_pose.point.y})")
 
         goal_msg = PlanRoute.Goal()
-        goal_msg.destination = point_map
+        goal_msg.destination = self.goal_pose
 
         send_goal_future = self.route_action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
         send_goal_future.add_done_callback(self.action_response_callback)
@@ -179,6 +186,3 @@ class NavigationClient(Node):
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
-    
-    def update_waypoints(self, waypoints):
-        self.waypoints = waypoints
