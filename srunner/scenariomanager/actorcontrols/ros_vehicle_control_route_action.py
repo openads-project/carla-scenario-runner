@@ -56,17 +56,13 @@ class RosVehicleControlRouteAction(ExternalControl):
 
         role_name = actor.attributes["role_name"]
 
-        target_x = float(args["target_x"])
-        target_y = float(args["target_y"])
-
         if not rclpy.ok():
             rclpy.init()
 
-        self.node = NavigationClient(role_name, params, target_x, target_y)
+        self.node = NavigationClient(role_name, params)
         self.node.get_logger().info(
             f"Route action client initialized for role '{role_name}' "
-            f"(target=({target_x:.2f}, {target_y:.2f}), "
-            f"trajectory_topic='{params['trajectory_topic']}', "
+            f"(trajectory_topic='{params['trajectory_topic']}', "
             f"route_action='{params['route_action']}')"
         )
 
@@ -87,11 +83,9 @@ class RosVehicleControlRouteAction(ExternalControl):
 
 
 class NavigationClient(Node):
-    def __init__(self, role_name, params, target_x, target_y):
+    def __init__(self, role_name, params):
         super().__init__('ros_agent_{}'.format(role_name))
 
-        self.target_x = target_x
-        self.target_y = target_y
         self.waypoints = None
 
         self.route_triggered_flag = False
