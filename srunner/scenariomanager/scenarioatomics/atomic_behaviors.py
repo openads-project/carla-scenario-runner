@@ -754,27 +754,35 @@ class ChangeActorWaypoints(AtomicBehavior):
 
     '''Note: When using routing options such as fastest or shortest, it is advisable to run
              in synchronous mode
-    """ 
-    def __init__(self, actor, waypoints, times=None, name="ChangeActorWaypoints", additional_parameters=None):
+    """
+
+    def __init__(self, actor, waypoints, times=None, name="ChangeActorWaypoints", is_osc1=True, additional_parameters=None):
         """
         Setup parameters
         """
-        super(ChangeActorWaypoints, self).__init__(name, actor)
+        super().__init__(name, actor)
 
         self._waypoints = waypoints
         self._start_time = None
         self._times = times
+        self._is_osc1 = is_osc1
         self._initial_timestep = True
-        
-        # addition for Aadvanced replay to sim (ARtS)
+
+        if len(self._waypoints) != len(self._times):
+            raise ValueError("Both 'waypoints' and 'times' must have the same length")
+
+        # additions for Replay to Sim (RtS) or Advanced Replay to Sim (ARtS)
         self.arts = False
-        self._waypoint_transforms = [sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(wp[0]) for wp in waypoints]
-        self.moving_object_ids = []
-        self.loop_time = time.time()
-        
-        if additional_parameters and "arts" in additional_parameters.keys():
-            if additional_parameters["arts"] == "True":
+        self.rts = False
+        if additional_parameters and "rts-mode" in additional_parameters.keys():
+            if additional_parameters["rts-mode"] == "rts":
+                self.rts = True
+            elif additional_parameters["rts-mode"] == "arts":
                 self.arts = True
+                self._waypoint_transforms = [sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(wp[0]) for wp in waypoints]
+                self.moving_object_ids = []
+                self.loop_time = time.time()
+
                 if "check_for_road_user" in additional_parameters: 
                     self.prioritized_objects = additional_parameters["check_for_road_user"]
                 else:
@@ -828,29 +836,41 @@ class ChangeActorWaypoints(AtomicBehavior):
         May throw if actor is not available as key for the ActorsWithController
         dictionary from Blackboard.
         """
+        actor_dict = {}
+
         try:
             check_actors = operator.attrgetter("ActorsWithController")
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
         except AttributeError:
             pass
 
-        if not actor_dict or not self._actor.id in actor_dict:
+        if not actor_dict or self._actor.id not in actor_dict:
             raise RuntimeError("Actor not found in ActorsWithController BlackBoard")
 
         self._start_time = GameTime.get_time()
 
-        # Transforming OSC waypoints to Carla waypoints
-        carla_route_elements = []
-        for (osc_point, routing_option) in self._waypoints:
-            carla_transforms = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(osc_point)
-            carla_route_elements.append((carla_transforms, routing_option))
+        if self._is_osc1:
+            # Transforming OSC waypoints to Carla waypoints
+            carla_route_elements = []
+            for (osc_point, routing_option) in self._waypoints:
+                carla_transforms = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(osc_point)
+                carla_route_elements.append((carla_transforms, routing_option))
+        else:
+            carla_route_elements = []
+            # mmap = CarlaDataProvider.get_map()
+            for (point, routing_option) in self._waypoints:
+                wp_transf = carla.Transform(location=carla.Location(point[0],point[1],point[2]))
+                # carla_transforms = [mmap.get_waypoint(wp_transf.location)]
+                carla_route_elements.append((wp_transf, routing_option))
+
+
         # Obtain final route, considering the routing option
         # At the moment everything besides "shortest" will use the CARLA GlobalPlanner
         grp = CarlaDataProvider.get_global_route_planner()
         route = []
-        for i, _ in enumerate(carla_route_elements):
-            if carla_route_elements[i][1] == "shortest":
-                route.append(carla_route_elements[i][0])
+        for i, element in enumerate(carla_route_elements):
+            if element[1] == "shortest":
+                route.append(element[0])
             else:
                 if i == 0:
                     mmap = CarlaDataProvider.get_map()
@@ -863,12 +883,12 @@ class ChangeActorWaypoints(AtomicBehavior):
                     waypoint = ego_next_wp.transform.location
                 else:
                     waypoint = carla_route_elements[i - 1][0].location
-                waypoint_next = carla_route_elements[i][0].location
+                waypoint_next = element[0].location
                 try:
                     interpolated_trace = grp.trace_route(waypoint, waypoint_next)
                 except networkx.NetworkXNoPath:
                     print("WARNING: No route from {} to {} - Using direct path instead".format(waypoint, waypoint_next))
-                    route.append(carla_route_elements[i][0])
+                    route.append(element[0])
                     continue
                 for wp_tuple in interpolated_trace:
                     # The router sometimes produces points that go backward, or are almost identical
@@ -889,7 +909,8 @@ class ChangeActorWaypoints(AtomicBehavior):
                         route.append(wp_tuple[0].transform)
 
         actor_dict[self._actor.id].update_waypoints(route, start_time=self._start_time)
-        super(ChangeActorWaypoints, self).initialise()
+
+        super().initialise()
 
     def update(self):
         """
@@ -907,7 +928,7 @@ class ChangeActorWaypoints(AtomicBehavior):
         except AttributeError:
             pass
 
-        if not actor_dict or not self._actor.id in actor_dict:
+        if not actor_dict or self._actor.id not in actor_dict:
             return py_trees.common.Status.FAILURE
 
         actor = actor_dict[self._actor.id]
@@ -918,21 +939,23 @@ class ChangeActorWaypoints(AtomicBehavior):
         if actor.check_reached_waypoint_goal():
             return py_trees.common.Status.SUCCESS
 
-        if self._times is not None:
-            current_relative_time = GameTime.get_time() - self._start_time
-            current_waypoint_idx = bisect_right(self._times, current_relative_time)
-            if current_waypoint_idx >= len(self._times):
-                return py_trees.common.Status.SUCCESS
-            try:
-                # check first if actor is available or already deleted - if deleted, no speed can be set anymore and no waypoints are needed
-                self._actor.get_velocity()
-            except:
-                return py_trees.common.Status.RUNNING
-            if self.arts:
-                self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-            else:
-                self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
-            
+        # additions for RtS or ARtS
+        if self.rts or self.arts:
+            if self._times is not None:
+                current_relative_time = GameTime.get_time() - self._start_time
+                current_waypoint_idx = bisect_right(self._times, current_relative_time)
+                if current_waypoint_idx >= len(self._times):
+                    return py_trees.common.Status.SUCCESS
+                try:
+                    # check first if actor is available or already deleted - if deleted, no speed can be set anymore and no waypoints are needed
+                    self._actor.get_velocity()
+                except:
+                    return py_trees.common.Status.RUNNING
+                if self.arts:
+                    self._update_speed_arts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                else:
+                    self._update_speed_rts(actor=actor, current_waypoint_idx=current_waypoint_idx, current_relative_time=current_relative_time)
+                
         return py_trees.common.Status.RUNNING
 
     def _update_speed_rts(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
