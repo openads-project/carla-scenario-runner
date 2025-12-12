@@ -79,8 +79,11 @@ class RosVehicleControlRouteAction(ExternalControl):
         pass
 
     def run_step(self):
-
         pass
+
+    def update_waypoints(self, waypoints, start_time=None):
+        self.node.update_waypoints(waypoints)
+        return super().update_waypoints(waypoints, start_time)
 
 
 class NavigationClient(Node):
@@ -89,6 +92,7 @@ class NavigationClient(Node):
 
         self.target_x = target_x
         self.target_y = target_y
+        self.waypoints = None
 
         self.route_triggered_flag = False
         self.transform_timeout = Duration(seconds=0.5)
@@ -117,6 +121,9 @@ class NavigationClient(Node):
         if not CarlaDataProvider.is_scenario_running():
             self.get_logger().warning("Scenario not running, ignoring trajectory update")
             return
+        if not self.waypoints:
+            self.get_logger().warning("No waypoints available, ignoring trajectory update")
+            return
 
         try:
             self.tf_buffer.lookup_transform(
@@ -134,7 +141,7 @@ class NavigationClient(Node):
         if msg.standstill and not self.route_triggered_flag:
             self.get_logger().info("Received first non-standstill trajectory, triggering route action")
 
-            self.call_action(self.target_x, self.target_y, yaw=0.0)
+            self.call_action(self.waypoints[-1].location.x, -self.waypoints[-1].location.y, yaw=0.0)
             self.route_triggered_flag = True
 
     def call_action(self, x, y, yaw):
@@ -178,3 +185,6 @@ class NavigationClient(Node):
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
+    
+    def update_waypoints(self, waypoints):
+        self.waypoints = waypoints
