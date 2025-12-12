@@ -112,8 +112,8 @@ class NavigationClient(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.get_logger().info(
-            f"Subscribing to trajectory topic '{self.trajectory_topic}' "
-            f"and publishing routes to '{self.route_topic}'"
+            f"Subscribing to trajectory topic '{params['trajectory_topic']}' "
+            f"and publishing routes to '{params['route_topic']}'"
         )
 
     def trajectory_callback(self, msg):
@@ -161,9 +161,8 @@ class NavigationClient(Node):
             self.get_logger().warning("No route available to publish")
             return
 
-        waypoint_count = len(self.route.remaining_route_elements)
         self.get_logger().info(
-            f"Sending route message with {waypoint_count} waypoint(s)"
+            f"Sending route message"
         )
 
         self.route_pub.publish(self.route)
@@ -194,10 +193,10 @@ class NavigationClient(Node):
             route_element.s = s
             route_element.lane_elements.append(lane_element)
 
-            route.remaining_route_elements.append(route_element)
+            route.route_elements.append(route_element)
 
         # set final route information
         route.destination = trans.carla_location_to_ros_point(waypoints[-1].location)
-        route.remaining_route_elements[-1].lane_elements[-1].has_following_lane_idx = False
+        route.route_elements[-1].lane_elements[-1].has_following_lane_idx = False
 
         return route
