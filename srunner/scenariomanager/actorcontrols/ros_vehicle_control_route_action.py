@@ -136,7 +136,7 @@ class NavigationClient(Node):
             return
 
         # Trigger route action once we receive a valid (non-standstill) trajectory
-        if (not msg.standstill) and (not self.route_triggered_flag):
+        if msg.standstill and not self.route_triggered_flag:
             self.get_logger().info("Received non-standstill trajectory, triggering route action")
 
             self.call_route_action()
