@@ -135,9 +135,9 @@ class NavigationClient(Node):
             )
             return
 
-        # Trigger route action once we receive a valid (non-standstill) trajectory
+        # Trigger route action once we receive a valid (standstill) trajectory
         if msg.standstill and not self.route_triggered_flag:
-            self.get_logger().info("Received non-standstill trajectory, triggering route action")
+            self.get_logger().info("Received standstill trajectory, triggering route action")
 
             self.call_route_action()
             self.route_triggered_flag = True
@@ -155,6 +155,7 @@ class NavigationClient(Node):
         )
         # Ensure a new goal can trigger the action again
         self.route_triggered_flag = False
+        self.reached_goal = False
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
