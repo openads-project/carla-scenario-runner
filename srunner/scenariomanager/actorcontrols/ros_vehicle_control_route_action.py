@@ -24,7 +24,6 @@ from geometry_msgs.msg import PointStamped, Point
 from route_planning_msgs.action import PlanRoute
 from trajectory_planning_msgs.msg import Trajectory
 
-import tf2_ros
 import carla
 
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
@@ -91,7 +90,7 @@ class NavigationClient(Node):
         self.reached_goal = False
 
         self.route_triggered_flag = False
-        self.transform_timeout = Duration(seconds=0.5)
+        self.transform_timeout = Duration(seconds=1.0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -99,9 +98,6 @@ class NavigationClient(Node):
             self.trajectory_callback,
             10
         )
-
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.route_action_client = ActionClient(self, PlanRoute, params["route_action"])
 
@@ -120,19 +116,6 @@ class NavigationClient(Node):
 
         if not self.goal_pose:
             self.get_logger().warning("No goal pose available, ignoring trajectory update")
-            return
-
-        try:
-            self.tf_buffer.lookup_transform(
-                'map', 'base_link',
-                rclpy.time.Time(),
-                timeout=self.transform_timeout
-            )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-
-            self.get_logger().warning(
-                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
-            )
             return
 
         # Trigger route action once we receive a valid (standstill) trajectory
