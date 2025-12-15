@@ -84,6 +84,8 @@ class RosVehicleControlRouteTopic(BasicControl):
         self.node.set_route(waypoints)
         return super().update_waypoints(waypoints, start_time)
 
+    def check_reached_waypoint_goal(self):
+        return self.node.reached_goal
 
 class NavigationClient(Node):
 
@@ -91,6 +93,7 @@ class NavigationClient(Node):
         super().__init__('ros_agent_{}'.format(role_name))
 
         self.route = None
+        self.reached_goal = False
 
         self.route_triggered_flag = False
         self.transform_timeout = Duration(seconds=0.5)
@@ -153,7 +156,6 @@ class NavigationClient(Node):
             return
 
         self.route = self._build_route_message(waypoints)
-        self.route_triggered_flag = False
 
     def send_route(self):
         """Publish a route message"""

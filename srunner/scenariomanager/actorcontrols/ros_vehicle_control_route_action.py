@@ -190,6 +190,8 @@ class NavigationClient(Node):
         """Called when the goal is completed"""
         result = future.result().result
         self.reached_goal = True
+        self.route_triggered_flag = False
+
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()
