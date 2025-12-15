@@ -24,7 +24,6 @@ from geometry_msgs.msg import PointStamped, Point
 from route_planning_msgs.action import PlanRoute
 from trajectory_planning_msgs.msg import Trajectory
 
-import tf2_ros
 import carla
 
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
@@ -80,15 +79,18 @@ class RosVehicleControlRouteAction(BasicControl):
         self.node.set_goal_pose(waypoints)
         return super().update_waypoints(waypoints, start_time)
 
+    def check_reached_waypoint_goal(self):
+        return self.node.reached_goal
 
 class NavigationClient(Node):
     def __init__(self, role_name, params):
         super().__init__('ros_agent_{}'.format(role_name))
 
         self.goal_pose = None
+        self.reached_goal = False
 
         self.route_triggered_flag = False
-        self.transform_timeout = Duration(seconds=0.5)
+        self.transform_timeout = Duration(seconds=1.0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -96,9 +98,6 @@ class NavigationClient(Node):
             self.trajectory_callback,
             10
         )
-
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.route_action_client = ActionClient(self, PlanRoute, params["route_action"])
 
@@ -119,21 +118,9 @@ class NavigationClient(Node):
             self.get_logger().warning("No goal pose available, ignoring trajectory update")
             return
 
-        try:
-            self.tf_buffer.lookup_transform(
-                'map', 'base_link',
-                rclpy.time.Time(),
-                timeout=self.transform_timeout
-            )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-
-            self.get_logger().warning(
-                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
-            )
-            return
-
+        # Trigger route action once we receive a valid (standstill) trajectory
         if msg.standstill and not self.route_triggered_flag:
-            self.get_logger().info("Received non-standstill trajectory, triggering route action")
+            self.get_logger().info("Received standstill trajectory, triggering route action")
 
             self.call_route_action()
             self.route_triggered_flag = True
@@ -149,6 +136,9 @@ class NavigationClient(Node):
             y=-waypoints[-1].location.y,
             z=0.0
         )
+        # Ensure a new goal can trigger the action again
+        self.route_triggered_flag = False
+        self.reached_goal = False
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
@@ -183,6 +173,9 @@ class NavigationClient(Node):
     def result_callback(self, future):
         """Called when the goal is completed"""
         result = future.result().result
+        self.reached_goal = True
+        self.route_triggered_flag = False
+
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
         rclpy.shutdown()

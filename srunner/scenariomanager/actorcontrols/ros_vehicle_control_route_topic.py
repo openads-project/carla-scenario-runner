@@ -24,7 +24,6 @@ import threading
 from route_planning_msgs.msg import Route, RouteElement, LaneElement
 from trajectory_planning_msgs.msg import Trajectory
 
-import tf2_ros
 import carla
 import carla_common.transforms as trans
 
@@ -84,6 +83,8 @@ class RosVehicleControlRouteTopic(BasicControl):
         self.node.set_route(waypoints)
         return super().update_waypoints(waypoints, start_time)
 
+    def check_reached_waypoint_goal(self):
+        return self.node.reached_goal
 
 class NavigationClient(Node):
 
@@ -91,6 +92,7 @@ class NavigationClient(Node):
         super().__init__('ros_agent_{}'.format(role_name))
 
         self.route = None
+        self.reached_goal = False
 
         self.route_triggered_flag = False
         self.transform_timeout = Duration(seconds=0.5)
@@ -108,9 +110,6 @@ class NavigationClient(Node):
             10
         )
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-
         self.get_logger().info(
             f"Subscribing to trajectory topic '{params['trajectory_topic']}' "
             f"and publishing routes to '{params['route_topic']}'"
@@ -123,19 +122,6 @@ class NavigationClient(Node):
 
         if not self.route:
             self.get_logger().warning("No route available, ignoring trajectory update")
-            return
-
-        try:
-            self.tf_buffer.lookup_transform(
-                'map', 'base_link',
-                rclpy.time.Time(),
-                timeout=self.transform_timeout
-            )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-
-            self.get_logger().warning(
-                f"Transform from map to base_link not available yet, waiting for carla-its-adapter: {e}"
-            )
             return
 
         if msg.standstill and not self.route_triggered_flag:
@@ -153,7 +139,6 @@ class NavigationClient(Node):
             return
 
         self.route = self._build_route_message(waypoints)
-        self.route_triggered_flag = False
 
     def send_route(self):
         """Publish a route message"""
