@@ -70,6 +70,8 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
     _grp = None
     _runtime_init_flag = False
     _scenario_running = False
+    _route_action_expected = False
+    _route_action_completed = False
     _lock = threading.Lock()
 
     @staticmethod
@@ -313,6 +315,56 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
         @return true if a scenario is currently running
         """
         return CarlaDataProvider._scenario_running
+
+    @staticmethod
+    def register_route_action_client():
+        """
+        Register a ROS route action client that should report completion.
+        """
+        with CarlaDataProvider._lock:
+            CarlaDataProvider._route_action_expected = True
+            CarlaDataProvider._route_action_completed = False
+
+    @staticmethod
+    def mark_route_action_completed():
+        """
+        Mark a ROS route action client as completed.
+        """
+        with CarlaDataProvider._lock:
+            CarlaDataProvider._route_action_completed = True
+
+    @staticmethod
+    def route_action_expected():
+        """
+        @return true if any route action client is registered for this scenario
+        """
+        with CarlaDataProvider._lock:
+            return CarlaDataProvider._route_action_expected
+
+    @staticmethod
+    def route_action_completed():
+        """
+        @return true if the registered route action client completed
+        """
+        with CarlaDataProvider._lock:
+            return CarlaDataProvider._route_action_completed
+
+    @staticmethod
+    def route_action_pending():
+        """
+        @return true if a route action client is registered and did not complete
+        """
+        with CarlaDataProvider._lock:
+            return CarlaDataProvider._route_action_expected and not CarlaDataProvider._route_action_completed
+
+    @staticmethod
+    def reset_route_action_tracking():
+        """
+        Reset route action tracking between scenarios.
+        """
+        with CarlaDataProvider._lock:
+            CarlaDataProvider._route_action_expected = False
+            CarlaDataProvider._route_action_completed = False
 
     @staticmethod
     def find_weather_presets():
