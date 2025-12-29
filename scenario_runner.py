@@ -468,8 +468,10 @@ class ScenarioRunner(object):
 
             if CarlaDataProvider.route_action_expected():
                 if CarlaDataProvider.route_action_pending():
-                    print("Route action result callback not received")
+                    print("Route action result callback not received!")
                     result = False
+                else:
+                    print("Route action was executed successfully!")
 
             # Remove all actors, stop the recorder and save all criterias (if needed)
             scenario.remove_all_actors()
@@ -580,6 +582,9 @@ class ScenarioRunner(object):
             result = self._run_scenarios()
 
         print("No more scenarios .... Exiting")
+        print("=====================================")
+        print("Test result: {}".format("SUCCESS" if result else "FAILURE"))
+        
         return result
 
 
