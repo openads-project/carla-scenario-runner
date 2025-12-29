@@ -191,6 +191,7 @@ class ScenarioRunner(object):
         self.manager.cleanup()
 
         CarlaDataProvider.cleanup()
+        CarlaDataProvider.reset_route_action_tracking()
 
         for i, _ in enumerate(self.ego_vehicles):
             if self.ego_vehicles[i]:
@@ -465,6 +466,13 @@ class ScenarioRunner(object):
             # Provide outputs if required
             result = self._analyze_scenario(config)
 
+            if CarlaDataProvider.route_action_registered():
+                if CarlaDataProvider.route_action_pending():
+                    print("Route action result callback not received!")
+                    result = False
+                else:
+                    print("Route action was executed successfully!")
+
             # Remove all actors, stop the recorder and save all criterias (if needed)
             scenario.remove_all_actors()
             if self._args.record:
@@ -522,10 +530,11 @@ class ScenarioRunner(object):
         """
         Run a scenario based on OpenSCENARIO
         """
+        result = True
         for openscenario in self._args.openscenarios:
             # Load the scenario configurations provided in the config file
             if not os.path.isfile(openscenario):
-                print("File does not exist")
+                print("OpenSCENARIO file does not exist: {}".format(openscenario))
                 self._cleanup()
                 return False
 
@@ -536,7 +545,7 @@ class ScenarioRunner(object):
                     openscenario_params[key] = val
             config = OpenScenarioConfiguration(openscenario, self.client, openscenario_params)
 
-            result = self._load_and_run_scenario(config)
+            result = self._load_and_run_scenario(config) and result
             self._cleanup()
         return result
 
@@ -573,6 +582,9 @@ class ScenarioRunner(object):
             result = self._run_scenarios()
 
         print("No more scenarios .... Exiting")
+        print("=====================================")
+        print("Test result: {}".format("SUCCESS" if result else "FAILURE"))
+
         return result
 
 
@@ -692,6 +704,7 @@ def main():
         result = scenario_runner.run()
     except Exception:   # pylint: disable=broad-except
         traceback.print_exc()
+        result = False
 
     finally:
         if scenario_runner is not None:

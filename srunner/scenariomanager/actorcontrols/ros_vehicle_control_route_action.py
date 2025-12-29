@@ -124,6 +124,7 @@ class NavigationClient(Node):
 
             self.call_route_action()
             self.route_triggered_flag = True
+            CarlaDataProvider.register_route_action_client()
 
     def set_goal_pose(self, waypoints):
         """Set the goal pose from waypoints"""
@@ -175,6 +176,7 @@ class NavigationClient(Node):
         result = future.result().result
         self.reached_goal = True
         self.route_triggered_flag = False
+        CarlaDataProvider.mark_route_action_completed()
 
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route action completion")
