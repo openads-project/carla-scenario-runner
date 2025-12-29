@@ -466,7 +466,7 @@ class ScenarioRunner(object):
             # Provide outputs if required
             result = self._analyze_scenario(config)
 
-            if CarlaDataProvider.route_action_expected():
+            if CarlaDataProvider.route_action_registered():
                 if CarlaDataProvider.route_action_pending():
                     print("Route action result callback not received!")
                     result = False
@@ -584,7 +584,7 @@ class ScenarioRunner(object):
         print("No more scenarios .... Exiting")
         print("=====================================")
         print("Test result: {}".format("SUCCESS" if result else "FAILURE"))
-        
+
         return result
 
 
