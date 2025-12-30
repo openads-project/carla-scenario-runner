@@ -4,7 +4,6 @@
 > This repository is a fork of the [carla-scenario-runner](https://github.com/ika-rwth-aachen/carla-scenario-runner)! All initial and following modifications to the parent repository are documented in [IKA_CHANGELOG.md](./IKA_CHANGELOG.md).
 
 ---
----
 
 ## IKA GitHub README
 
@@ -14,19 +13,17 @@
   <a href="https://github.com/ika-rwth-aachen/carla-scenario-runner/actions/workflows/docker.yml">
   <img src="https://github.com/ika-rwth-aachen/carla-scenario-runner/actions/workflows/docker.yml/badge.svg"/></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04-E95420"/>
-  <img src="https://img.shields.io/badge/CARLA-0.9.15-blueviolet"/>
-  <img src="https://img.shields.io/badge/Python-3.10-blueviolet"/>
+  <img src="https://img.shields.io/badge/CARLA-0.9.16-blueviolet"/>
+  <img src="https://img.shields.io/badge/Python-3.12-blueviolet"/>
   <img src="https://img.shields.io/github/stars/ika-rwth-aachen/carla-scenario-runner?style=social"/>
 </p>
 
 > [!IMPORTANT]
 > This repository is a minimal fork of the official [scenario_runner](https://github.com/carla-simulator/scenario_runner)! All initial and following modifications to the original repository are documented in [CARLOS_CHANGELOG.md](./CARLOS_CHANGELOG.md).
-
 > [!TIP]
 > We recommend to use the *carla-scenario-runner* as **control actor** in our open, modular and scalable simulation framework <a href="https://github.com/ika-rwth-aachen/carlos">**CARLOS**. <img src="https://img.shields.io/github/stars/ika-rwth-aachen/carlos?style=social"/></a> 
 >
 > The *carla-scenario-runner* is used to enable scenario-based testing and evaluation. It is a powerful engine that follows the OpenSCENARIO standard for scenario definitions.
-
 > [!NOTE]
 > We set up a Continous Integration (CI) pipeline as [GitHub workflow](./github/workflows/docker.yml) to continously build Docker images for the `carla-scenario-runner`, publicly available on [Docker Hub](https://hub.docker.com/r/rwthika/carla-scenario-runner).
 
@@ -45,6 +42,8 @@ You can use this system to prepare your agent for the CARLA Challenge.
 Scenarios can be defined through a Python interface, and with the newest version
 the scenario_runner also the upcoming [OpenSCENARIO](http://www.openscenario.org/) standard and [OpenSCENARIO 2.0](https://www.asam.net/standards/detail/openscenario/v200/) standard is supported.
 
+[Read the documentation here](https://scenario-runner.readthedocs.io/en/latest/).
+
 [![Scenario_Runner for CARLA](Docs/img/scenario_runner_video.png)](https://youtu.be/ChmF8IFagpo?t=68)
 
 Getting the ScenarioRunner
@@ -56,7 +55,7 @@ branch contains the latest fixes and features, and may be required to use the la
 It is important to also consider the release version that has to match the CARLA version.
 
 * [Version 0.9.15](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.15) and the 0.9.15 Branch: Compatible with [CARLA 0.9.15](https://github.com/carla-simulator/carla/releases/tag/0.9.15)
-* [Version 0.9.13](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.13) and the 0.9.13 Branch: Compatible with [CARLA 0.9.13](https://github.com/carla-simulator/carla/releases/tag/0.9.13)
+* [Version 0.9.13](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.13) and the 0.9.13 Branch: Compatible with [CARLA 0.9.13](https://github.com/carla-simulator/carla/releases/tag/0.9.13) and [CARLA 0.9.14](https://github.com/carla-simulator/carla/releases/tag/0.9.14)
 * [Version 0.9.12](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.12) and the 0.9.12 Branch: Compatible with [CARLA 0.9.12](https://github.com/carla-simulator/carla/releases/tag/0.9.12)
 * [Version 0.9.11](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.11) and the 0.9.11 Branch: Compatible with [CARLA 0.9.11](https://github.com/carla-simulator/carla/releases/tag/0.9.11)
 * [Version 0.9.10](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.10) and the 0.9.10 Branch: Compatible with [CARLA 0.9.10](https://github.com/carla-simulator/carla/releases/tag/0.9.10)
@@ -74,7 +73,7 @@ Currently no build is required, as all code is in Python.
 Using the ScenarioRunner
 ------------------------
 
-Please take a look at our [Getting started](Docs/getting_scenariorunner.md)
+Please take a look at our [Getting started](https://scenario-runner.readthedocs.io/en/latest/getting_scenariorunner/)
 documentation.
 
 Challenge Evaluation

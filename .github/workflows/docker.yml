@@ -8,7 +8,6 @@ jobs:
     name: Clean up
     runs-on: ubuntu-latest
     steps:
-
       - name: Clean up
         run: rm -rf *
         
@@ -35,8 +34,8 @@ jobs:
       - uses: robinraju/release-downloader@v1.8
         name: Download PythonAPI
         with:
-          repository: carla-compose/carla-simulator
-          latest: true
+          repository: ika-rwth-aachen/carla-simulator
+          tag: v0.9.16
           fileName: PythonAPI.tar.gz
           extract: true          
           out-file-path: .
