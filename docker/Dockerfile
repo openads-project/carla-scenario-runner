@@ -34,7 +34,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
 RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt --break-system-packages
-RUN pip3 install Flask
+RUN pip3 install Flask --break-system-packages
 
 # Download and extract artifacts
 RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
