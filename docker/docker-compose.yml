@@ -1,4 +1,4 @@
-x-ubuntu-version: &ubuntu-version 22.04
+x-ubuntu-version: &ubuntu-version 24.04
 x-artifacts-url:  &artifacts-url  https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-python-api
 x-image:          &image          gitlab.ika.rwth-aachen.de:5050/fb-fi/simulation/carla/carla-scenario-runner:latest
 
