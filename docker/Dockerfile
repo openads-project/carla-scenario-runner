@@ -1,5 +1,6 @@
 ARG UBUNTU_VERSION="24.04"
-
+ARG ARTIFACTS_URL
+ARG CI_JOB_TOKEN
 
 ############ dependencies ############
 FROM "ubuntu:${UBUNTU_VERSION}"
