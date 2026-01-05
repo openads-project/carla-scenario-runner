@@ -8,8 +8,12 @@ FROM "ubuntu:${UBUNTU_VERSION}"
 USER root
 SHELL ["/bin/bash", "-c"]
 
+ARG CARLA_PATH=/opt/carla
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
+
+ARG ARTIFACTS_URL
+ARG CI_JOB_TOKEN
 
 # Install essentials
 RUN apt-get update && \
