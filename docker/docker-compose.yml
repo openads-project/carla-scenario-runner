@@ -1,5 +1,5 @@
 x-ubuntu-version: &ubuntu-version 24.04
-x-artifacts-url:  &artifacts-url  https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/update/0.9.16/download?job=provide-carla-artifacts
+x-artifacts-url:  &artifacts-url  https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts
 x-image:          &image          gitlab.ika.rwth-aachen.de:5050/fb-fi/simulation/carla/carla-scenario-runner:latest
 
 # ==============================================================================
