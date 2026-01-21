@@ -1,11 +1,9 @@
-ARG UBUNTU_VERSION="22.04"
+ARG UBUNTU_VERSION="24.04"
+ARG ARTIFACTS_URL
+ARG CI_JOB_TOKEN
 
 ############ dependencies ############
 FROM "ubuntu:${UBUNTU_VERSION}"
-
-ARG ARTIFACTS_URL
-ARG CI_JOB_TOKEN
-ARG CI_REPOSITORY_URL
 
 USER root
 SHELL ["/bin/bash", "-c"]
@@ -13,6 +11,9 @@ SHELL ["/bin/bash", "-c"]
 ARG CARLA_PATH=/opt/carla
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
+
+ARG ARTIFACTS_URL
+ARG CI_JOB_TOKEN
 
 # Install essentials
 RUN apt-get update && \
@@ -25,7 +26,7 @@ RUN apt-get update && \
       libjpeg8 \
       libomp5 \
       libpng16-16 \
-      libtiff5 \
+      libtiff6 \
       libxerces-c-dev \
       unzip \
       wget \
@@ -33,13 +34,12 @@ RUN apt-get update && \
       python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
-RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt
-RUN pip3 install Flask
+RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt --break-system-packages
+RUN pip3 install Flask --break-system-packages
 
 # Download and extract artifacts
 RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
@@ -48,19 +48,25 @@ RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_
     mv artifacts/PythonAPI ${CARLA_PATH}
 
 # Recursively install PythonAPI requirements, keep version of first occurrence
-# NOTE: Installing open3d somehow leads to several unavoidable upgrades, especially to Numpy>=2.0.0
-# This breaks Scenario Runner at the moment, thus open3d needs to be filtered out for the moment
 RUN cat $(find ${CARLA_API_PATH} -type f -name "requirements.txt") > /tmp/requirements_raw.txt \
     && awk -F '==' '{print $1}' /tmp/requirements_raw.txt | awk '!visited[$1]++' > /tmp/requirements.txt \
-    && sed -i '/^open3d$/d' /tmp/requirements.txt \
-    && pip3 install --upgrade-strategy only-if-needed -r /tmp/requirements.txt
+    && pip3 install -r /tmp/requirements.txt --break-system-packages
+
+# Install CARLA PythonAPI wheel
+RUN set -e; \
+    pyver=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"); \
+    wheel=$(echo ${CARLA_API_PATH}/carla/dist/*${pyver}*.whl); \
+    pip install --no-cache-dir "$wheel" --break-system-packages
 
 # Create script that adds API to pythonpath and make .bashrc source it
-RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/dist/$(ls $CARLA_API_PATH/carla/dist | grep py$(python --version | awk -F'[ .]' '{print $2"."$3}').)" >> /setup_carla_env.sh; \
-    echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents" >> /setup_carla_env.sh; \
+RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents" >> /setup_carla_env.sh; \
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla" >> /setup_carla_env.sh; \
     echo "export CARLA_API_PATH=$CARLA_API_PATH" >> /setup_carla_env.sh; \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
+
+# Default file cache for CARLA client-side map files
+ENV CARLA_CACHE_DIR=/tmp/carlaCache
+RUN mkdir -p /tmp/carlaCache
 
 # Needed for (pygame based) scripts that have a GUI
 ENV SDL_VIDEODRIVER=x11
