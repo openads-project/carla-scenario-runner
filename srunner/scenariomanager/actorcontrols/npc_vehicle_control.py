@@ -101,14 +101,15 @@ class NpcVehicleControl(BasicControl):
             self._update_offset()
 
         # Times have been specified, modify the speed accordingly
-        if self._times:
+        if self._times and not self._local_planner.done():
             if self._start_time is None:
                 self._start_time = GameTime.get_time()
-            plan_len = len(self._local_planner.get_plan())
-            current_index = len(self._waypoints) - plan_len
+            plan = self._local_planner.get_plan()
+            plan_len = len(plan)
+            current_index = len(self._waypoints) - len(plan)
             target_time = self._times[current_index]
             delta_time = target_time - (GameTime.get_time() - self._start_time)
-            target_location = self._local_planner.get_plan()[0][0].transform.location
+            target_location = plan[0][0].transform.location
             target_distance = self._actor.get_location().distance(target_location)
             self._target_speed = target_distance / max(delta_time, 0.001)
 
