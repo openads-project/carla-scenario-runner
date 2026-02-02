@@ -105,7 +105,6 @@ class NpcVehicleControl(BasicControl):
             if self._start_time is None:
                 self._start_time = GameTime.get_time()
             plan = self._local_planner.get_plan()
-            plan_len = len(plan)
             current_index = len(self._waypoints) - len(plan)
             target_time = self._times[current_index]
             delta_time = target_time - (GameTime.get_time() - self._start_time)
