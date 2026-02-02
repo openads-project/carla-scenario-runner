@@ -92,6 +92,9 @@ class NpcVehicleControl(BasicControl):
         """
         self._reached_goal = False
 
+        if not self._actor.is_alive:
+            return
+
         if self._waypoints_updated:
             self._waypoints_updated = False
             self._update_plan()
@@ -118,8 +121,6 @@ class NpcVehicleControl(BasicControl):
             raise NotImplementedError("Negative target speeds are not yet supported")
 
         self._local_planner.set_speed(target_speed * 3.6)
-        if not self._actor.is_alive:
-            return
         control = self._local_planner.run_step(debug=False)
 
         # Check if the actor reached the end of the plan
