@@ -43,6 +43,8 @@ class RosVehicleControlRouteAction(BasicControl):
 
         self._initial_speed_duration = float(args.get("initial_speed_duration", 3.0))
         self._initial_speed_end_time = None
+        self._initial_wait_steps = max(0, int(args.get("initial_wait_steps", 0.5)))
+        self._initial_wait_steps_done = 0
 
         if "trajectory_topic" in args:
             params["trajectory_topic"] = args["trajectory_topic"]
@@ -81,23 +83,39 @@ class RosVehicleControlRouteAction(BasicControl):
         if not self.node.goal_pose:
             return
 
-        if not self.node.route_triggered_flag and self._get_sim_time() > 15.0:
+        if self._get_sim_time() < 15.0:
+            return
+
+        if self._initial_wait_steps_done < self._initial_wait_steps:
+            self._initial_wait_steps_done += 1
+            self._apply_initial_speed()
+            return
+
+        if not self.node.route_triggered_flag:
             self.node.call_route_action()
             CarlaDataProvider.register_route_action_client()
-            self._start_initial_speed_hold()
+            if self._initial_speed_end_time is None:
+                self._start_initial_speed_hold()
 
         self._apply_initial_speed_hold()
 
     def update_waypoints(self, waypoints, start_time=None):
         self.node.set_goal_pose(waypoints)
-        self._initial_speed_pending = self._initial_speed_duration > 0.0
+        self._initial_wait_steps_done = 0
+        self._initial_speed_end_time = None
         return super().update_waypoints(waypoints, start_time)
 
     def check_reached_waypoint_goal(self):
         return self.node.reached_goal
 
     def set_init_speed(self):
-        self._initial_speed_pending = True
+        self._initial_wait_steps_done = 0
+
+    def _apply_initial_speed(self):
+        yaw = self._actor.get_transform().rotation.yaw * (math.pi / 180)
+        vx = math.cos(yaw) * self._target_speed
+        vy = math.sin(yaw) * self._target_speed
+        self._actor.set_target_velocity(carla.Vector3D(vx, vy, 0))
 
     def _start_initial_speed_hold(self):
         self._initial_speed_end_time = self._get_sim_time() + self._initial_speed_duration
@@ -110,11 +128,7 @@ class RosVehicleControlRouteAction(BasicControl):
             self._initial_speed_end_time = None
             return
 
-        yaw = self._actor.get_transform().rotation.yaw * (math.pi / 180)
-        vx = math.cos(yaw) * self._target_speed
-        vy = math.sin(yaw) * self._target_speed
-        self._actor.set_target_velocity(carla.Vector3D(vx, vy, 0))
-        print(f"Holding initial speed {self._target_speed} m/s", flush=True)
+        self._apply_initial_speed()
 
     def _get_sim_time(self):
         world = CarlaDataProvider.get_world()
