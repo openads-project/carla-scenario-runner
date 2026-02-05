@@ -76,7 +76,7 @@ class RosVehicleControlRouteAction(BasicControl):
         self.check_requirements()
 
         # TODO: This is a temporaty workarround for visualization only.
-        if time < 15.0:
+        if time < 0.0:
             return
 
         # Set timestamps for initial speed and route action if not already set
@@ -85,7 +85,7 @@ class RosVehicleControlRouteAction(BasicControl):
             self._route_action_time = time + self._route_action_offset
 
         # Trigger the route action at the specified time
-        if time >= self._route_action_time:
+        if self._route_action_time is not None and time >= self._route_action_time:
             self._route_action_time = None
 
             self.node.call_route_action()
