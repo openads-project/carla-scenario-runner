@@ -41,10 +41,10 @@ class RosVehicleControlRouteAction(BasicControl):
         params["trajectory_topic"] = "/planning/drivable_trajectory"
         params["route_action"] = "/planning/lanelet2_route_planning/plan_route"
 
-        self._initial_speed_duration = float(args.get("initial_speed_duration", 3.0))
+        self._initial_speed_duration = float(args.get("initial_speed_duration", 1.0))
         self._initial_speed_end_time = None
-        self._initial_wait_steps = max(0, int(args.get("initial_wait_steps", 0.5)))
-        self._initial_wait_steps_done = 0
+        self._route_action_offset = float(args.get("route_action_offset", 0.2))
+        self._route_action_time = None
 
         if "trajectory_topic" in args:
             params["trajectory_topic"] = args["trajectory_topic"]
@@ -71,64 +71,61 @@ class RosVehicleControlRouteAction(BasicControl):
         pass
 
     def run_step(self):
+        time = self._get_sim_time()
+
+        self.check_requirements()
+
+        # TODO: This is a temporaty workarround for visualization only.
+        if time < 15.0:
+            return
+
+        # Set timestamps for initial speed and route action if not already set
+        if self._initial_speed_end_time is None:
+            self._initial_speed_end_time = time + self._initial_speed_duration
+            self._route_action_time = time + self._route_action_offset
+
+        # Trigger the route action at the specified time
+        if time >= self._route_action_time:
+            self._route_action_time = None
+
+            self.node.call_route_action()
+            CarlaDataProvider.register_route_action_client()
+
+        # Apply initial speed until the end time is reached
+        if time < self._initial_speed_end_time:
+            self._apply_initial_speed()
+
+    def check_requirements(self):
+
         if not CarlaDataProvider.is_scenario_running():
-            return
-
-        if self.node.reached_goal:
-            return
-
-        if not self.node.stack_ready:
             return
 
         if not self.node.goal_pose:
             return
 
-        if self._get_sim_time() < 15.0:
+        if not self.node.stack_ready:
             return
 
-        if self._initial_wait_steps_done < self._initial_wait_steps:
-            self._initial_wait_steps_done += 1
-            self._apply_initial_speed()
+        if self.node.reached_goal:
             return
-
-        if not self.node.route_triggered_flag:
-            self.node.call_route_action()
-            CarlaDataProvider.register_route_action_client()
-            if self._initial_speed_end_time is None:
-                self._start_initial_speed_hold()
-
-        self._apply_initial_speed_hold()
 
     def update_waypoints(self, waypoints, start_time=None):
         self.node.set_goal_pose(waypoints)
-        self._initial_wait_steps_done = 0
         self._initial_speed_end_time = None
+        self._route_action_time = None
         return super().update_waypoints(waypoints, start_time)
 
     def check_reached_waypoint_goal(self):
         return self.node.reached_goal
 
-    def set_init_speed(self):
-        self._initial_wait_steps_done = 0
-
     def _apply_initial_speed(self):
+        if self._target_speed <= 0:
+            return
+
         yaw = self._actor.get_transform().rotation.yaw * (math.pi / 180)
         vx = math.cos(yaw) * self._target_speed
         vy = math.sin(yaw) * self._target_speed
         self._actor.set_target_velocity(carla.Vector3D(vx, vy, 0))
-
-    def _start_initial_speed_hold(self):
-        self._initial_speed_end_time = self._get_sim_time() + self._initial_speed_duration
-
-    def _apply_initial_speed_hold(self):
-        if self._initial_speed_end_time is None:
-            return
-
-        if self._get_sim_time() >= self._initial_speed_end_time:
-            self._initial_speed_end_time = None
-            return
-
-        self._apply_initial_speed()
 
     def _get_sim_time(self):
         world = CarlaDataProvider.get_world()
@@ -191,6 +188,9 @@ class NavigationClient(Node):
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
+        if self.route_triggered_flag:
+            self.get_logger().info("Route action already triggered, skipping")
+            return
 
         self.get_logger().info(f"Sending goal destination ({self.goal_pose.point.x}, {self.goal_pose.point.y})")
 
