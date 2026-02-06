@@ -45,6 +45,7 @@ class RosVehicleControlRouteAction(BasicControl):
         self._initial_speed_end_time = None
         self._route_action_offset = float(args.get("route_action_offset", 0.2))
         self._route_action_time = None
+        self._debug_time_offset = float(args.get("debug_time_offset", 0.0))
 
         if "trajectory_topic" in args:
             params["trajectory_topic"] = args["trajectory_topic"]
@@ -75,8 +76,8 @@ class RosVehicleControlRouteAction(BasicControl):
 
         self.check_requirements()
 
-        # TODO: This is a temporaty workarround for visualization only.
-        if time < 0.0:
+        # This is a debugging workaround for visualization only.
+        if time < self._debug_time_offset:
             return
 
         # Set timestamps for initial speed and route action if not already set
