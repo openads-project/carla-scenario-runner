@@ -10,15 +10,15 @@
 """
 ROS Vehicle Control that sends route action from scenario
 """
+import math
+import threading
 
 import rclpy
-from rclpy.action import ActionClient
-from rclpy.node import Node
-from rclpy.duration import Duration
-from rosgraph_msgs.msg import Clock
+from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time
-
-import threading
+from rclpy.action import ActionClient
+from rclpy.duration import Duration
+from rclpy.node import Node
 
 from geometry_msgs.msg import PointStamped, Point
 from route_planning_msgs.action import PlanRoute
@@ -34,17 +34,18 @@ class RosVehicleControlRouteAction(BasicControl):
     def __init__(self, actor, args=None):
         super().__init__(actor)
 
+        args = args or {}
         print(f"RosVehicleControlRouteAction args: {args}", flush=True)
 
         params = {}
         params["trajectory_topic"] = "/planning/drivable_trajectory"
         params["route_action"] = "/planning/lanelet2_route_planning/plan_route"
 
-        if "initial_speed" in args:
-            self._initial_speed = float(args["initial_speed"])
-            actor_tf = actor.get_transform()
-            target_velocity = actor_tf.transform_vector(carla.Vector3D(self._initial_speed, 0, 0))
-            actor.set_target_velocity(target_velocity)
+        self._initial_speed_duration = float(args.get("initial_speed_duration", 1.0))
+        self._initial_speed_end_time = None
+        self._route_action_offset = float(args.get("route_action_offset", 0.2))
+        self._route_action_time = None
+        self._debug_time_offset = float(args.get("debug_time_offset", 0.0))
 
         if "trajectory_topic" in args:
             params["trajectory_topic"] = args["trajectory_topic"]
@@ -52,14 +53,12 @@ class RosVehicleControlRouteAction(BasicControl):
         if "route_action" in args:
             params["route_action"] = args["route_action"]
 
-        role_name = actor.attributes["role_name"]
-
         if not rclpy.ok():
             rclpy.init()
 
-        self.node = NavigationClient(role_name, params)
+        self.node = NavigationClient(params)
         self.node.get_logger().info(
-            f"Route action client initialized for role '{role_name}' "
+            f"Route ROS client initialized "
             f"(trajectory_topic='{params['trajectory_topic']}', "
             f"route_action='{params['route_action']}')"
         )
@@ -73,24 +72,82 @@ class RosVehicleControlRouteAction(BasicControl):
         pass
 
     def run_step(self):
-        pass
+        time = self._get_sim_time()
+
+        self.check_requirements()
+
+        # This is a debugging workaround for visualization only.
+        if time < self._debug_time_offset:
+            return
+
+        # Set timestamps for initial speed and route action if not already set
+        if self._initial_speed_end_time is None:
+            self._initial_speed_end_time = time + self._initial_speed_duration
+            self._route_action_time = time + self._route_action_offset
+
+        # Trigger the route action at the specified time
+        if self._route_action_time is not None and time >= self._route_action_time:
+            self._route_action_time = None
+
+            self.node.call_route_action()
+            CarlaDataProvider.register_route_action_client()
+
+        # Apply initial speed until the end time is reached
+        if time < self._initial_speed_end_time:
+            self._apply_initial_speed()
+
+    def check_requirements(self):
+
+        if not CarlaDataProvider.is_scenario_running():
+            return
+
+        if not self.node.goal_pose:
+            return
+
+        if not self.node.stack_ready:
+            return
+
+        if self.node.reached_goal:
+            return
 
     def update_waypoints(self, waypoints, start_time=None):
         self.node.set_goal_pose(waypoints)
+        self._initial_speed_end_time = None
+        self._route_action_time = None
         return super().update_waypoints(waypoints, start_time)
 
     def check_reached_waypoint_goal(self):
         return self.node.reached_goal
 
+    def _apply_initial_speed(self):
+        if self._target_speed <= 0:
+            return
+
+        yaw = self._actor.get_transform().rotation.yaw * (math.pi / 180)
+        vx = math.cos(yaw) * self._target_speed
+        vy = math.sin(yaw) * self._target_speed
+        self._actor.set_target_velocity(carla.Vector3D(vx, vy, 0))
+
+    def _get_sim_time(self):
+        world = CarlaDataProvider.get_world()
+        if world is None:
+            return None
+
+        snapshot = world.get_snapshot()
+        if snapshot is None:
+            return None
+
+        return snapshot.timestamp.elapsed_seconds
+
+
 class NavigationClient(Node):
-    def __init__(self, role_name, params):
-        super().__init__('ros_agent_{}'.format(role_name))
+    def __init__(self, params):
+        super().__init__('ros_route_agent')
 
         self.goal_pose = None
         self.reached_goal = False
-
+        self.stack_ready = False
         self.route_triggered_flag = False
-        self.transform_timeout = Duration(seconds=1.0)
 
         self.trajectory_sub = self.create_subscription(
             Trajectory,
@@ -110,21 +167,10 @@ class NavigationClient(Node):
         self.get_logger().info(f"Route action server '{params['route_action']}' available")
 
     def trajectory_callback(self, msg):
-        if not CarlaDataProvider.is_scenario_running():
-            self.get_logger().warning("Scenario not running, ignoring trajectory update")
-            return
 
-        if not self.goal_pose:
-            self.get_logger().warning("No goal pose available, ignoring trajectory update")
-            return
-
-        # Trigger route action once we receive a valid (standstill) trajectory
-        if msg.standstill and not self.route_triggered_flag:
-            self.get_logger().info("Received standstill trajectory, triggering route action")
-
-            self.call_route_action()
-            self.route_triggered_flag = True
-            CarlaDataProvider.register_route_action_client()
+        if not self.stack_ready:
+            self.stack_ready = True
+            self.get_logger().info("Received first trajectory, stack ready")
 
     def set_goal_pose(self, waypoints):
         """Set the goal pose from waypoints"""
@@ -143,6 +189,9 @@ class NavigationClient(Node):
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
+        if self.route_triggered_flag:
+            self.get_logger().info("Route action already triggered, skipping")
+            return
 
         self.get_logger().info(f"Sending goal destination ({self.goal_pose.point.x}, {self.goal_pose.point.y})")
 
@@ -151,6 +200,7 @@ class NavigationClient(Node):
 
         send_goal_future = self.route_action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
         send_goal_future.add_done_callback(self.action_response_callback)
+        self.route_triggered_flag = True
 
     def action_response_callback(self, future):
         """Called when the goal is accepted or rejected"""
@@ -173,11 +223,14 @@ class NavigationClient(Node):
 
     def result_callback(self, future):
         """Called when the goal is completed"""
-        result = future.result().result
-        self.reached_goal = True
-        self.route_triggered_flag = False
-        CarlaDataProvider.mark_route_action_completed()
+        result = future.result()
 
+        self.route_triggered_flag = False
+
+        if result is not None and result.status == GoalStatus.STATUS_SUCCEEDED:
+            self.reached_goal = True
+            CarlaDataProvider.mark_route_action_completed()
+            
         self.get_logger().info(f"Route action goal completed with status: {result}")
-        self.get_logger().info("Shutting down rclpy after route action completion")
+        self.get_logger().info("Shutting down rclpy after route result callback")
         rclpy.shutdown()
