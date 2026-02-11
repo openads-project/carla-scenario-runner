@@ -961,7 +961,7 @@ class ChangeActorWaypoints(AtomicBehavior):
                 
         return py_trees.common.Status.RUNNING
 
-    def _update_speed_rts(self, actor, current_waypoint_idx, current_relative_time, teleporting=False, switch_following_method_at_time=math.inf, lookahead=10):
+    def _update_speed_rts(self, actor, current_waypoint_idx, current_relative_time, teleporting=True, switch_following_method_at_time=math.inf, lookahead=10):
         """
         Update the velocity of the actor based on the distance to the target waypoint.
         If target waypoint is already passed, actor decelerate until next waypoint is reached.
