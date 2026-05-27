@@ -968,8 +968,8 @@ class OpenScenarioParser(object):
                     condition_rule = headtime_condition.attrib.get('rule')
                     condition_operator = OpenScenarioParser.operators[condition_rule]
 
-                    condition_freespace = strtobool(headtime_condition.attrib.get('freespace', False))
-                    condition_along_route = strtobool(headtime_condition.attrib.get('alongRoute', False))
+                    condition_freespace = strtobool(headtime_condition.attrib.get('freespace', "false"))
+                    condition_along_route = strtobool(headtime_condition.attrib.get('alongRoute', "false"))
 
                     for actor in actor_list:
                         if headtime_condition.attrib.get('entityRef', None) == actor.attributes['role_name']:
@@ -994,8 +994,8 @@ class OpenScenarioParser(object):
                     condition_target = ttc_condition.find('TimeToCollisionConditionTarget')
                     entity_ref_ = condition_target.find('EntityRef')
 
-                    condition_freespace = strtobool(ttc_condition.attrib.get('freespace', False))
-                    condition_along_route = strtobool(ttc_condition.attrib.get('alongRoute', False))
+                    condition_freespace = strtobool(ttc_condition.attrib.get('freespace', "false"))
+                    condition_along_route = strtobool(ttc_condition.attrib.get('alongRoute', "false"))
 
                     if condition_target.find('Position') is not None:
                         position = condition_target.find('Position')
@@ -1067,9 +1067,9 @@ class OpenScenarioParser(object):
                     distance_rule = distance_condition.attrib.get('rule')
                     distance_operator = OpenScenarioParser.operators[distance_rule]
 
-                    distance_freespace = strtobool(distance_condition.attrib.get('freespace', False))
+                    distance_freespace = strtobool(distance_condition.attrib.get('freespace', "false"))
 
-                    distance_along_route = strtobool(distance_condition.attrib.get('alongRoute', False))
+                    distance_along_route = strtobool(distance_condition.attrib.get('alongRoute', "false"))
 
                     if distance_condition.find('Position') is not None:
                         position = distance_condition.find('Position')
