@@ -1,109 +1,16 @@
-workflow:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"      # run child pipeline if triggered by parent pipeline
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  # run merge request pipeline if triggered by merge request
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS  # don't run branch pipeline if open merge request exists
-      when: never
-    - if: $CI_COMMIT_BRANCH                             # run branch pipeline if triggered by commit
-    - if: $CI_COMMIT_TAG                                # run tag pipeline with specific image tags if triggered by tag
-
-variables:
-  IMAGE_TARGET:     ${CI_REGISTRY_IMAGE}:latest
-  IMAGE_CI:         ${IMAGE_TARGET}_${CI_COMMIT_REF_SLUG}_ci
-  IMAGE_LATEST:     ${CI_REGISTRY_IMAGE}:latest
-  IMAGE_TARGET_TAG: ${IMAGE_TARGET}-${CI_COMMIT_TAG}
-  IMAGE_TAG:        ${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}
-  PUSH_AS_LATEST:   'true'
-  # -----
-  CI_TOKEN_USER:     gitlab-ci-token
-  CI_TOKEN_PASSWORD: $CI_REGISTRY_PASSWORD
-  CI_REPO_URL:       $CI_REPOSITORY_URL
-  # -----
-  DOCKER_COMPOSE_DIR:  docker
-  DOCKER_COMPOSE_FILE: docker-compose.yml
-  # -----
-  DOCKER_DRIVER:      overlay2
-  DOCKER_TLS_CERTDIR: /certs
-  DOCKER_BUILDKIT:    1
-
 stages:
-  - Build Image
-  - Push Image
+  - Build Images
 
-default:
-  image: docker:20.10.22-git
-  services:
-    - docker:20.10.22-dind
-  tags:
-    - privileged
-    - amd64
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker context create buildx-context
-    - docker buildx create --use buildx-context
-    - cd $DOCKER_COMPOSE_DIR
+carla-scenario-runner:
+  stage: Build Images
+  trigger:
+    include:
+      - local: docker/.gitlab-ci.yml
+    strategy: depend
 
-.build:
-  script:
-    - docker compose -f $DOCKER_COMPOSE_FILE build ${TARGET}
-    - docker tag ${IMG_TARGET} ${IMG}
-    - docker push ${IMG}
-
-run:
-  stage: Build Image
-  extends: .build
-  variables:
-    PLATFORM: linux/amd64
-    TARGET: run
-    IMG_TARGET: ${IMAGE_TARGET}
-    IMG: ${IMAGE_CI}
-
-.push:
-  needs:
-    - job: run
-      optional: true
-  script:
-    - docker manifest create ${IMG} --amend ${IMAGE_CI}
-    - docker manifest push ${IMG}
-
-Push CI:
-  stage: Push Image
-  extends: .push
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-  variables:
-    IMG: ${IMAGE_CI}
-
-Push:
-  stage: Push Image
-  extends: .push
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  variables:
-    IMG: ${IMAGE_TARGET}
-
-Push latest:
-  stage: Push Image
-  extends: .push
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $PUSH_AS_LATEST == 'true'
-  variables:
-    IMG: ${IMAGE_LATEST}
-
-Push target tag:
-  stage: Push Image
-  extends: .push
-  rules:
-    - if: $CI_COMMIT_TAG
-  variables:
-    IMG: ${IMAGE_TARGET_TAG}
-
-Push tag:
-  stage: Push Image
-  extends: .push
-  rules:
-    - if: $CI_COMMIT_TAG && $PUSH_AS_LATEST == 'true'
-  variables:
-    IMG: ${IMAGE_TAG}
+carla-scenario-runner-ros:
+  stage: Build Images
+  trigger:
+    include:
+      - local: docker-ros/.gitlab-ci.yml
+    strategy: depend
