@@ -32,27 +32,23 @@ default:
     - amd64
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker context create buildx-context
-    - docker buildx create --use buildx-context
 
 .build:
   script:
     - |-
-      docker buildx build \
-        --push \
-        --platform "${PLATFORM}" \
+      docker build \
         --file docker/Dockerfile \
         --tag "${IMG}" \
         --build-arg "UBUNTU_VERSION=${UBUNTU_VERSION}" \
         --build-arg "ARTIFACTS_URL=${ARTIFACTS_URL}" \
         --build-arg "CI_JOB_TOKEN=${CI_TOKEN_PASSWORD}" \
         .
+    - docker push "${IMG}"
 
 run:
   stage: Build Image
   extends: .build
   variables:
-    PLATFORM: linux/amd64
     IMG: ${IMAGE_CI}
 
 .push:
@@ -60,8 +56,14 @@ run:
     - job: run
       optional: true
   script:
-    - docker manifest create ${IMG} --amend ${IMAGE_CI}
-    - docker manifest push ${IMG}
+    - |-
+      if [[ "${IMG}" == "${IMAGE_CI}" ]]; then
+        echo "Image ${IMG} was already pushed by the build job."
+      else
+        docker pull "${IMAGE_CI}"
+        docker tag "${IMAGE_CI}" "${IMG}"
+        docker push "${IMG}"
+      fi
 
 Push CI:
   stage: Push Image
