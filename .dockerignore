@@ -1,0 +1,9 @@
+.git
+.git/
+docker/docker-ros/**
+!docker/docker-ros/
+!docker/docker-ros/docker/
+!docker/docker-ros/docker/entrypoint.sh
+!docker/docker-ros/docker/recursive_vcs_import.py
+__pycache__/
+*.pyc
