@@ -49,7 +49,7 @@ apt-get install -y --no-install-recommends \
 # Download and install CARLA PythonAPI artifacts.
 mkdir -p /opt/carla
 curl --location --output artifacts.zip "https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD"
-unzip artifacts.zip
+unzip -q artifacts.zip
 mv artifacts/PythonAPI /opt/carla
 rm -rf artifacts artifacts.zip
 
