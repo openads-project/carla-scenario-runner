@@ -8,7 +8,6 @@ variables:
   COMMAND: 'source /opt/carla/setup.bash && ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner.launch.py scenario_runner_path:=$SCENARIO_RUNNER_ROOT'
   TARGET: dev,run
   PLATFORM: amd64
-  DISABLE_ROS_INSTALLATION: 'true'
   ENABLE_INDUSTRIAL_CI: 'false'
   ENABLE_SLIM: 'false'
   VCS_IMPORT_FILE: docker-ros/carla-scenario-runner-ros.repos
