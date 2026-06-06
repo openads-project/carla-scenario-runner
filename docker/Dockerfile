@@ -62,7 +62,6 @@ RUN set -e; \
 # Create script that adds API to pythonpath and make .bashrc source it
 RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents" >> /setup_carla_env.sh; \
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla" >> /setup_carla_env.sh; \
-    echo "export CARLA_API_PATH=$CARLA_API_PATH" >> /setup_carla_env.sh; \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
 
 # Default file cache for CARLA client-side map files

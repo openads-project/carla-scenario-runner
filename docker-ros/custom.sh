@@ -1,5 +1,5 @@
 # Remove dependencies that are installed via pip to avoid conflicts.
-apt-get remove -y python3-transforms3d python3-psutil || true
+apt-get remove -y python3-transforms3d python3-psutil python3-blinker || true
 
 # Install runtime dependencies for Scenario Runner and CARLA artifacts.
 apt-get update
