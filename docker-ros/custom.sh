@@ -1,3 +1,6 @@
+# Remove dependencies that are installed via pip to avoid conflicts.
+apt-get remove -y python3-transforms3d python3-psutil python3-blinker || true
+
 # Install runtime dependencies for Scenario Runner and CARLA artifacts.
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -22,9 +25,6 @@ rm -rf carla-ros-bridge
 apt-get install -y --no-install-recommends \
     ros-$ROS_DISTRO-ros2cli \
     ros-$ROS_DISTRO-ros2cli-common-extensions
-
-# Remove dependencies that are installed via pip to avoid conflicts.
-apt-get remove -y python3-transforms3d python3-psutil python3-blinker || true
 
 export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
 export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
