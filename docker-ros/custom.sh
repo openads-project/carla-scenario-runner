@@ -38,6 +38,12 @@ rm -rf carla-ros-bridge
 export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
 export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
 
+# docker-ros copies ADDITIONAL_FILES_DIR entries with Docker ADD. With './*',
+# the srunner directory contents land directly in additional-files.
+if [[ ! -e "$SCENARIO_RUNNER_ROOT/srunner" && -f "$SCENARIO_RUNNER_ROOT/__init__.py" ]]; then
+    ln -s . "$SCENARIO_RUNNER_ROOT/srunner"
+fi
+
 # Install Scenario Runner Python dependencies from the copied repository.
 python -m pip install -r "$SCENARIO_RUNNER_ROOT/requirements.txt"
 

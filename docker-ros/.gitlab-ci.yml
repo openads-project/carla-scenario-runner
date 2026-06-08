@@ -11,6 +11,6 @@ variables:
   ENABLE_INDUSTRIAL_CI: 'false'
   ENABLE_SLIM: 'false'
   VCS_IMPORT_FILE: docker-ros/carla-scenario-runner-ros.repos
-  ADDITIONAL_FILES_DIR: '.'
+  ADDITIONAL_FILES_DIR: './*'
   ADDITIONAL_PIP_FILE: docker-ros/additional-pip-requirements.txt
   AFTER_DEPENDENCY_INSTALLATION_SCRIPT: docker-ros/custom.sh
