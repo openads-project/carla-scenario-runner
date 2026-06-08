@@ -45,11 +45,11 @@ fi
 
 # Create a script to append necessary paths to PYTHONPATH.
 mkdir -p "$(dirname "$CARLA_SETUP_SCRIPT")" "$CARLA_CACHE_DIR"
+chmod 1777 "$CARLA_CACHE_DIR"
 {
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents"
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla"
     echo "export PYTHONPATH=\$PYTHONPATH:$SCENARIO_RUNNER_ROOT"
     echo "export SCENARIO_RUNNER_ROOT=$SCENARIO_RUNNER_ROOT"
     echo "export CARLA_CACHE_DIR=$CARLA_CACHE_DIR"
-    echo "mkdir -p $CARLA_CACHE_DIR"
 } >> "$CARLA_SETUP_SCRIPT"
