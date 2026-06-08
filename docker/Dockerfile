@@ -38,11 +38,12 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
+ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
 RUN CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" \
-    SCENARIO_RUNNER_ROOT="${SCENARIO_RUNNER_ROOT}" \
+    CARLA_SETUP_SCRIPT=/setup_carla_env.sh \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     bash "$SCENARIO_RUNNER_PATH/docker/install.sh" && \
-    echo "source /opt/carla/setup.bash.sh" >> ~/.bashrc
+    echo "source /setup_carla_env.sh" >> ~/.bashrc
 
 RUN pip3 install Flask --break-system-packages
 

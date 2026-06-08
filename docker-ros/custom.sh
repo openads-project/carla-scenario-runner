@@ -1,6 +1,3 @@
-# Remove dependencies that are installed via pip to avoid conflicts.
-apt-get remove -y python3-transforms3d python3-psutil python3-blinker || true
-
 # Install runtime dependencies for Scenario Runner and CARLA artifacts.
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -21,6 +18,14 @@ mv carla-ros-bridge/carla_ros_scenario_runner_types "$WORKSPACE/src/target"
 mv carla-ros-bridge/ros_compatibility "$WORKSPACE/src/target"
 rm -rf carla-ros-bridge
 
+# Install missing ROS dependencies.
+apt-get install -y --no-install-recommends \
+    ros-$ROS_DISTRO-ros2cli \
+    ros-$ROS_DISTRO-ros2cli-common-extensions
+
+# Remove dependencies that are installed via pip to avoid conflicts.
+apt-get remove -y python3-transforms3d python3-psutil python3-blinker || true
+
 export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
 export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
 
@@ -40,11 +45,6 @@ if [[ ! -f "$install_script" ]]; then
     echo "Unable to find install.sh" >&2
     exit 1
 fi
-
-# Install missing ROS dependencies.
-apt-get install -y --no-install-recommends \
-    ros-$ROS_DISTRO-ros2cli \
-    ros-$ROS_DISTRO-ros2cli-common-extensions
 
 CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD" \
     bash "$install_script"
