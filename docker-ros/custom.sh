@@ -66,6 +66,7 @@ python -m pip install --no-cache-dir "$wheel"
 # Create a script to append necessary paths to PYTHONPATH
 echo "export PYTHONPATH=\$PYTHONPATH:/opt/carla/PythonAPI/carla/agents" >> /opt/carla/setup.bash
 echo "export PYTHONPATH=\$PYTHONPATH:/opt/carla/PythonAPI/carla" >> /opt/carla/setup.bash
+echo "export PYTHONPATH=\$PYTHONPATH:$SCENARIO_RUNNER_ROOT" >> /opt/carla/setup.bash
 
 # Set the SCENARIO_RUNNER_ROOT environment variable
 echo "export SCENARIO_RUNNER_ROOT=$SCENARIO_RUNNER_ROOT" >> /opt/carla/setup.bash
