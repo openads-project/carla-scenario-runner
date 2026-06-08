@@ -21,10 +21,6 @@ mv carla-ros-bridge/carla_ros_scenario_runner_types "$WORKSPACE/src/target"
 mv carla-ros-bridge/ros_compatibility "$WORKSPACE/src/target"
 rm -rf carla-ros-bridge
 
-# Install missing ROS dependencies.
-apt-get install -y --no-install-recommends \
-    ros-$ROS_DISTRO-ros2cli \
-    ros-$ROS_DISTRO-ros2cli-common-extensions
 
 export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
 export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
@@ -48,6 +44,11 @@ fi
 
 CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD" \
     bash "$install_script"
+
+# Install missing ROS dependencies.
+apt-get install -y --no-install-recommends \
+    ros-$ROS_DISTRO-ros2cli \
+    ros-$ROS_DISTRO-ros2cli-common-extensions
 
 # .bashrc sources the setup script
 echo "source /opt/carla/setup.bash" >> /root/.bashrc
