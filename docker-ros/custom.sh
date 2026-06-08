@@ -7,20 +7,6 @@ apt-get install -y --no-install-recommends \
     libtiff6 \
     unzip
 
-# Ensure libtiff5 compatibility for CARLA on Ubuntu 24.04.
-if ! ldconfig -p | grep -q "libtiff.so.5"; then
-    apt-get install -y libtiff5 && ldconfig || true
-    if ! ldconfig -p | grep -q "libtiff.so.5"; then
-        if [ -f /usr/lib/x86_64-linux-gnu/libtiff.so.6 ] && [ ! -e /usr/lib/x86_64-linux-gnu/libtiff.so.5 ]; then
-            ln -sf /usr/lib/x86_64-linux-gnu/libtiff.so.6 /usr/lib/x86_64-linux-gnu/libtiff.so.5
-            ldconfig
-        else
-            echo "Unable to provide libtiff.so.5 compatibility" >&2
-            exit 1
-        fi
-    fi
-fi
-
 # Copy over necessary ROS components from ros-bridge and remove the rest.
 mkdir -p "$WORKSPACE/src/target"
 if [[ -n "${GIT_HTTPS_USER:-}" && -n "${GIT_HTTPS_PASSWORD:-}" ]]; then
@@ -44,42 +30,24 @@ if [[ ! -e "$SCENARIO_RUNNER_ROOT/srunner" && -f "$SCENARIO_RUNNER_ROOT/__init__
     ln -s . "$SCENARIO_RUNNER_ROOT/srunner"
 fi
 
-# Install Scenario Runner Python dependencies from the copied repository.
-python -m pip install -r "$SCENARIO_RUNNER_ROOT/requirements.txt"
+# docker-ros flattens top-level directory contents into additional-files, so
+# the shared install script can be either at the root or below docker/.
+install_script="$SCENARIO_RUNNER_ROOT/install.sh"
+if [[ ! -f "$install_script" ]]; then
+    install_script="$SCENARIO_RUNNER_ROOT/docker/install.sh"
+fi
+if [[ ! -f "$install_script" ]]; then
+    echo "Unable to find install.sh" >&2
+    exit 1
+fi
 
-# Install missing ROS dependencies after python3-psutil removal.
+# Install missing ROS dependencies.
 apt-get install -y --no-install-recommends \
     ros-$ROS_DISTRO-ros2cli \
     ros-$ROS_DISTRO-ros2cli-common-extensions
 
-# Download and install CARLA PythonAPI artifacts.
-mkdir -p /opt/carla
-curl --location --output artifacts.zip "https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD"
-unzip -q artifacts.zip
-mv artifacts/PythonAPI /opt/carla
-rm -rf artifacts artifacts.zip
-
-# Install PythonAPI requirements, keeping the version of the first occurrence.
-find /opt/carla/PythonAPI -type f -name "requirements.txt" -print0 | xargs -0 cat > /tmp/carla-pythonapi-requirements-raw.txt
-awk -F '==' '{print $1}' /tmp/carla-pythonapi-requirements-raw.txt | awk '!visited[$1]++' > /tmp/carla-pythonapi-requirements.txt
-python -m pip install -r /tmp/carla-pythonapi-requirements.txt
-
-# Install the CARLA wheel that matches the current Python minor version.
-pyver=$(python -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
-wheel=$(echo /opt/carla/PythonAPI/carla/dist/*${pyver}*.whl)
-python -m pip install --no-cache-dir "$wheel"
-
-# Create a script to append necessary paths to PYTHONPATH
-echo "export PYTHONPATH=\$PYTHONPATH:/opt/carla/PythonAPI/carla/agents" >> /opt/carla/setup.bash
-echo "export PYTHONPATH=\$PYTHONPATH:/opt/carla/PythonAPI/carla" >> /opt/carla/setup.bash
-echo "export PYTHONPATH=\$PYTHONPATH:$SCENARIO_RUNNER_ROOT" >> /opt/carla/setup.bash
-
-# Set the SCENARIO_RUNNER_ROOT environment variable
-echo "export SCENARIO_RUNNER_ROOT=$SCENARIO_RUNNER_ROOT" >> /opt/carla/setup.bash
-
-# Default file cache for CARLA client-side map files
-echo "export CARLA_CACHE_DIR=/tmp/carlaCache" >> /opt/carla/setup.bash
-echo "mkdir -p /tmp/carlaCache" >> /opt/carla/setup.bash
+CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD" \
+    bash "$install_script"
 
 # .bashrc sources the setup script
 echo "source /opt/carla/setup.bash" >> /root/.bashrc
