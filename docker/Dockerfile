@@ -29,52 +29,29 @@ RUN apt-get update && \
       libtiff6 \
       libxerces-c-dev \
       unzip \
-      wget \
       x11-apps \
       python3-pip \
+    && apt-get remove -y python3-blinker \
     && rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
-RUN pip3 install -r $SCENARIO_RUNNER_PATH/requirements.txt --break-system-packages
-RUN pip3 install Flask --break-system-packages
-
-# Download and extract artifacts
-RUN curl --location --output artifacts.zip "${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
-    unzip artifacts.zip && \
-    mkdir -p ${CARLA_PATH} && \
-    mv artifacts/PythonAPI ${CARLA_PATH}
-
-# Recursively install PythonAPI requirements, keep version of first occurrence
-RUN cat $(find ${CARLA_API_PATH} -type f -name "requirements.txt") > /tmp/requirements_raw.txt \
-    && awk -F '==' '{print $1}' /tmp/requirements_raw.txt | awk '!visited[$1]++' > /tmp/requirements.txt \
-    && pip3 install -r /tmp/requirements.txt --break-system-packages
-
-# Install CARLA PythonAPI wheel
-RUN set -e; \
-    pyver=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"); \
-    wheel=$(echo ${CARLA_API_PATH}/carla/dist/*${pyver}*.whl); \
-    pip install --no-cache-dir "$wheel" --break-system-packages
-
-# Create script that adds API to pythonpath and make .bashrc source it
-RUN echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents" >> /setup_carla_env.sh; \
-    echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla" >> /setup_carla_env.sh; \
-    echo "export CARLA_API_PATH=$CARLA_API_PATH" >> /setup_carla_env.sh; \
+ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
+RUN CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" \
+    CARLA_SETUP_SCRIPT=/setup_carla_env.sh \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    bash "$SCENARIO_RUNNER_PATH/docker/install.sh" && \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
 
-# Default file cache for CARLA client-side map files
-ENV CARLA_CACHE_DIR=/tmp/carlaCache
-RUN mkdir -p /tmp/carlaCache
+RUN pip3 install Flask --break-system-packages
 
 # Needed for (pygame based) scripts that have a GUI
 ENV SDL_VIDEODRIVER=x11
 
 USER root
 SHELL ["/bin/bash", "-c"]
-
-ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
 
 ARG WORKSPACE=${SCENARIO_RUNNER_PATH}
 ENV WORKSPACE=${WORKSPACE}
