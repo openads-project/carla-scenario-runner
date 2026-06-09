@@ -98,7 +98,7 @@ class ManeuverOppositeDirection(BasicScenario):
             second_prop_actor.set_simulate_physics(True)
         first_actor = CarlaDataProvider.request_new_actor(first_actor_model, first_actor_transform)
         first_actor.set_simulate_physics(True)
-        second_actor = CarlaDataProvider.request_new_actor('vehicle.audi.tt', second_actor_waypoint.transform)
+        second_actor = CarlaDataProvider.request_new_actor('vehicle.ue4.audi.tt', second_actor_waypoint.transform)
 
         self.other_actors.append(first_actor)
         self.other_actors.append(second_actor)
@@ -125,7 +125,7 @@ class ManeuverOppositeDirection(BasicScenario):
 
         # Leaf nodes
         actor_source = ActorSource(
-            ['vehicle.audi.tt', 'vehicle.tesla.model3', 'vehicle.nissan.micra'],
+            ['vehicle.ue4.audi.tt', 'vehicle.dodge.charger', 'vehicle.nissan.micra'],
             self._source_transform, self._source_gap, self._blackboard_queue_name)
         actor_sink = ActorSink(self._sink_location, 10)
         ego_drive_distance = DriveDistance(self.ego_vehicles[0], self._ego_vehicle_drive_distance)

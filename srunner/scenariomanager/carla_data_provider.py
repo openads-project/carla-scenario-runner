@@ -737,12 +737,12 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
             return False
 
         _actor_blueprint_categories = {
-            'car': 'vehicle.tesla.model3',
-            'van': 'vehicle.volkswagen.t2',
-            'truck': 'vehicle.carlamotors.carlacola',
+            'car': 'vehicle.dodge.charger',
+            'van': 'vehicle.sprinter.mercedes',
+            'truck': 'vehicle.carlacola.actors',
             'trailer': '',
             'semitrailer': '',
-            'bus': 'vehicle.volkswagen.t2',
+            'bus': 'vehicle.fuso.mitsubishi',
             'motorbike': 'vehicle.kawasaki.ninja',
             'bicycle': 'vehicle.diamondback.century',
             'train': '',

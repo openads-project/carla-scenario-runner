@@ -80,7 +80,7 @@ class OtherLeadingVehicle(BasicScenario):
                                                    second_vehicle_waypoint.transform.rotation)
 
         first_vehicle = CarlaDataProvider.request_new_actor('vehicle.nissan.patrol', first_vehicle_transform)
-        second_vehicle = CarlaDataProvider.request_new_actor('vehicle.audi.tt', second_vehicle_transform)
+        second_vehicle = CarlaDataProvider.request_new_actor('vehicle.ue4.audi.tt', second_vehicle_transform)
 
         self.other_actors.append(first_vehicle)
         self.other_actors.append(second_vehicle)

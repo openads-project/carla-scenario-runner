@@ -42,7 +42,7 @@ if [[ ! -f "$install_script" ]]; then
     exit 1
 fi
 
-CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts&job_token=$GIT_HTTPS_PASSWORD" \
+CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image&job_token=$GIT_HTTPS_PASSWORD" \
     bash "$install_script"
 
 # Install missing ROS dependencies.

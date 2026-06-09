@@ -13,7 +13,7 @@ variables:
   CI_TOKEN_PASSWORD: $CI_REGISTRY_PASSWORD
   # -----
   UBUNTU_VERSION: 24.04
-  ARTIFACTS_URL:  https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/main/download?job=provide-carla-artifacts
+  ARTIFACTS_URL:  https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image
   # -----
   DOCKER_DRIVER:      overlay2
   DOCKER_TLS_CERTDIR: /certs
