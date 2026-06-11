@@ -33,7 +33,7 @@ class DistanceBetweenVehicles(BasicMetric):
 
         # Get the ID of the two vehicles
         ego_id = log.get_ego_vehicle_id()
-        adv_id = log.get_actor_ids_with_role_name("challenger_vehicle")[0]  # Could have also used its type_id
+        adv_id = log.get_actor_ids_with_role_name("scenario")[0]  # Could have also used its type_id
 
         dist_list = []
         frames_list = []

@@ -1,31 +1,13 @@
 # Scenario Runner ROS
 
-This repository aims to provide standalone images of the [CARLA ROS Scenario Runner](https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-scenario-runner) for usage in CI pipelines, cluster deployments etc. by utilizing [docker-ros](https://gitlab.ika.rwth-aachen.de/fb-fi/ops/docker-ros).
-
-**Note:**
-
-The scenario runner used here is from a fork created by **ika**, which is integrated as a submodule. Additionally, some components of the [carla-ros-bridge](https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-ros-bridge) fork by **ika** (especially the scenario runner ROS node) are integrated by cloning and copying them over when building the image.
-
-- [Nodes](#nodes)
-  - [carla_ros_scenario_runner/carla_ros_scenario_runner_node.py](#carla_ros_scenario_runnercarla_ros_scenario_runnerpy)
-- [Usage of docker-ros Images](#usage-of-docker-ros-images)
-  - [Available Images](#available-images)
-  - [Default Command](#default-command)
-  - [Environment Variables](#environment-variables)
-  - [Launch Files](#launch-files)
-  - [Configuration Files](#configuration-files)
-  - [Additional Remarks](#additional-remarks)
-- [Building Locally](#building-locally)
-  - [Requirements](#requirements)
-  - [Steps](#steps)
-- [Official Documentation](#official-documentation)
-
+These Docker ROS images package the CARLA Scenario Runner with the ROS scenario runner node used in OpenADS workflows.
+They provide a reproducible container setup for running OpenSCENARIO scenarios in CI pipelines and cluster deployments.
 
 ## Nodes
 
 | Package | Node | Description |
 | --- | --- | --- |
-| `carla_ros_scenario_runner` | `carla_ros_scenario_runner.py` | Offers service to execute OpenScenarios on CARLA via ROS |
+| `carla_ros_scenario_runner` | `carla_ros_scenario_runner.launch.py` | Offers service to execute OpenScenarios on CARLA via ROS |
 
 ### carla_ros_scenario_runner/carla_ros_scenario_runner.py
 
