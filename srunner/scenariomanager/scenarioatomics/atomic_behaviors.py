@@ -111,6 +111,19 @@ class AtomicBehavior(py_trees.behaviour.Behaviour):
         self.logger.debug("%s.__init__()" % (self.__class__.__name__))
         self.name = name
         self._actor = actor
+        self._actor_name = None
+        if actor is not None and hasattr(actor, "attributes"):
+            self._actor_name = actor.attributes.get("role_name")
+
+    def _resolve_actor(self):
+        # AddEntityAction actors may be represented by a role-name-only
+        # placeholder while the tree is built. Resolve the real CARLA actor
+        # once the AddActor atomic has spawned it.
+        if self._actor is not None and hasattr(self._actor, "id"):
+            return self._actor
+        if self._actor_name is not None:
+            self._actor = CarlaDataProvider.get_actor_by_name(self._actor_name)
+        return self._actor
 
     def setup(self, unused_timeout=15):
         """
@@ -124,7 +137,8 @@ class AtomicBehavior(py_trees.behaviour.Behaviour):
         Initialise setup terminates WaypointFollowers
         Check whether WF for this actor is running and terminate all active WFs
         """
-        if self._actor is not None:
+        self._resolve_actor()
+        if self._actor is not None and hasattr(self._actor, "id"):
             try:
                 check_attr = operator.attrgetter("running_WF_actor_{}".format(self._actor.id))
                 terminate_wf = copy.copy(check_attr(py_trees.blackboard.Blackboard()))
@@ -340,8 +354,13 @@ class ChangeActorControl(AtomicBehavior):
         """
         super().__init__(name, actor)
 
-        self._actor_control = ActorControl(actor, control_py_module=control_py_module,
-                                           args=args, scenario_file_path=scenario_file_path)
+        self._control_py_module = control_py_module
+        self._args = args
+        self._scenario_file_path = scenario_file_path
+        self._actor_control = None
+        if self._actor is not None and hasattr(self._actor, "id"):
+            self._actor_control = ActorControl(self._actor, control_py_module=self._control_py_module,
+                                               args=self._args, scenario_file_path=self._scenario_file_path)
 
     def update(self):
         """
@@ -359,6 +378,16 @@ class ChangeActorControl(AtomicBehavior):
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
         except AttributeError:
             pass
+
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            return py_trees.common.Status.RUNNING
+
+        # Controller construction needs the concrete CARLA actor type, so it
+        # is delayed for actors that are spawned by AddEntityAction.
+        if self._actor_control is None:
+            self._actor_control = ActorControl(self._actor, control_py_module=self._control_py_module,
+                                               args=self._args, scenario_file_path=self._scenario_file_path)
 
         if actor_dict:
             if self._actor.id in actor_dict:
@@ -497,6 +526,10 @@ class ChangeActorTargetSpeed(AtomicBehavior):
         except AttributeError:
             pass
 
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            raise RuntimeError("Actor not found in CarlaDataProvider")
+
         if not actor_dict or self._actor.id not in actor_dict:
             raise RuntimeError("Actor not found in ActorsWithController BlackBoard")
 
@@ -536,6 +569,10 @@ class ChangeActorTargetSpeed(AtomicBehavior):
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
         except AttributeError:
             pass
+
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            return py_trees.common.Status.FAILURE
 
         if not actor_dict or self._actor.id not in actor_dict:
             return py_trees.common.Status.FAILURE
@@ -629,6 +666,10 @@ class SyncArrivalOSC(AtomicBehavior):
         except AttributeError:
             pass
 
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            raise RuntimeError("Actor not found in CarlaDataProvider")
+
         if not actor_dict or self._actor.id not in actor_dict:
             raise RuntimeError("Actor not found in ActorsWithController BlackBoard")
 
@@ -663,6 +704,10 @@ class SyncArrivalOSC(AtomicBehavior):
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
         except AttributeError:
             pass
+
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            return py_trees.common.Status.FAILURE
 
         if not actor_dict or self._actor.id not in actor_dict:
             return py_trees.common.Status.FAILURE
@@ -846,6 +891,10 @@ class ChangeActorWaypoints(AtomicBehavior):
             actor_dict = check_actors(py_trees.blackboard.Blackboard())
         except AttributeError:
             pass
+
+        self._resolve_actor()
+        if self._actor is None or not hasattr(self._actor, "id"):
+            raise RuntimeError("Actor not found in CarlaDataProvider")
 
         if not actor_dict or self._actor.id not in actor_dict:
             raise RuntimeError("Actor not found in ActorsWithController BlackBoard")
@@ -3582,15 +3631,17 @@ class ActorDestroy(AtomicBehavior):
     The behavior terminates after removing the actor
     """
 
-    def __init__(self, actor, name="ActorDestroy"):
+    def __init__(self, actor, actor_name=None, name="ActorDestroy"):
         """
         Setup actor
         """
         super().__init__(name, actor)
+        self._actor_name = actor_name or self._actor_name
         self.logger.debug("%s.__init__()" % (self.__class__.__name__))
 
     def update(self):
         new_status = py_trees.common.Status.RUNNING
+        self._resolve_actor()
         if self._actor:
             CarlaDataProvider.remove_actor_by_id(self._actor.id)
             self._actor = None
@@ -5121,7 +5172,8 @@ class AddActor(AtomicBehavior):
     A parallel termination behavior has to be used.
     """
 
-    def __init__(self, actor, actor_type, transform, init_velocity=carla.Vector3D(), color=None, name="SpawnActor"):
+    def __init__(self, actor, actor_type, transform, init_velocity=carla.Vector3D(), color=None,
+                 actor_name="scenario", actor_category="car", name="SpawnActor"):
         """
         Setup class members
         """
@@ -5131,30 +5183,43 @@ class AddActor(AtomicBehavior):
         self._spawn_point = transform
         self._color = color
         self._init_velocity = init_velocity
+        self._actor_name = actor_name
+        self._actor_category = actor_category
 
     def update(self):
-        """
-        not working properly since spawning does not work connecting carla and scenario runner entities. 
-        Important interplay with srunner/scenarios/open_scenario.py spawning all vehicles outside of the map at scenario start
-        """
-        new_status = py_trees.common.Status.RUNNING
-        self._actor.set_target_velocity(self._init_velocity)
-        self._actor.set_transform(self._spawn_point)
-        new_status = py_trees.common.Status.SUCCESS
-        return new_status
-        """
-        original code
         new_status = py_trees.common.Status.RUNNING
         try:
             new_actor = CarlaDataProvider.request_new_actor(
-                self._actor_type, self._spawn_point, color=self._color)
+                self._actor_type,
+                self._spawn_point,
+                rolename=self._actor_name,
+                color=self._color,
+                actor_category=self._actor_category)
             if new_actor:
+                self._actor = new_actor
+                self._actor.set_target_velocity(self._init_velocity)
+                self._ensure_default_actor_control(new_actor)
                 new_status = py_trees.common.Status.SUCCESS
         except RuntimeError:
             print("ActorSource unable to spawn actor")
             return py_trees.common.Status.FAILURE
-        return new_statu
-        """
+        return new_status
+
+    @staticmethod
+    def _ensure_default_actor_control(actor):
+        # Some scenarios assign route/speed immediately after AddEntityAction.
+        # Register a default controller so those follow-up actions have a
+        # blackboard entry even without an explicit ControllerAction.
+        actor_dict = {}
+        try:
+            check_actors = operator.attrgetter("ActorsWithController")
+            actor_dict = check_actors(py_trees.blackboard.Blackboard())
+        except AttributeError:
+            pass
+
+        if actor.id not in actor_dict:
+            actor_dict[actor.id] = ActorControl(actor, control_py_module=None, args={}, scenario_file_path=None)
+            py_trees.blackboard.Blackboard().set("ActorsWithController", actor_dict, overwrite=True)
 
 class SwitchWrongDirectionTest(AtomicBehavior):
 
