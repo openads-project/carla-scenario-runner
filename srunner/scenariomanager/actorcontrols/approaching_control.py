@@ -4,10 +4,13 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 """
-This module provides an control for vehicles following a predefined path and breaking for vehicles in front of it 
-(no matter if it is on an intersection or not)
+Actor control for vehicles that follow OpenSCENARIO-provided waypoints while
+adapting their speed to surrounding traffic.
 
-There is no sensor included, but ground trouth data is used 
+The controller steers the actor along a predefined path and uses CARLA ground
+truth actor data to estimate TTC/THW values for nearby road users. If the
+configured safety thresholds are violated, the actor brakes; otherwise it
+accelerates toward the configured target velocity.
 """
 import carla
 import math
@@ -25,8 +28,10 @@ from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 class ApproachingControl(BasicControl):
     """
-    Controller following another vehicle based on thw and ttc values.
-    Config can be specified via OpenSCENARIO file.
+    Waypoint-following vehicle controller with TTC/THW-based braking behavior.
+
+    Configuration values can be supplied through OpenSCENARIO controller
+    properties using the ``config_*`` prefix.
     """
 
     def __init__(self, actor, args=None):
