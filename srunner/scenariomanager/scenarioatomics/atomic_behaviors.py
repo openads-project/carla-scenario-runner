@@ -3598,59 +3598,6 @@ class ActorDestroy(AtomicBehavior):
 
         return new_status
 
-
-class AddActor(AtomicBehavior):
-    """
-    Implementation for a behavior that will create a actor
-    at a given transform if no other actor exists in a given radius
-    from the transform.
-
-    Important parameters:
-    - actor_type: Type of CARLA actors to be spawned
-    - transform: Spawn location
-    - velocity: set initial velocity
-    A parallel termination behavior has to be used.
-    """
-
-    def __init__(self, actor, actor_type, transform, init_velocity=carla.Vector3D(), color=None, name="SpawnActor"):
-        """
-        Setup class members
-        """
-        super(AddActor, self).__init__(name, actor)
-        self._actor_type = actor_type
-        self._actor = actor
-        self._spawn_point = transform
-        self._color = color
-        self._init_velocity = init_velocity
-
-    def update(self):
-        new_status = py_trees.common.Status.RUNNING
-        self._actor.set_target_velocity(self._init_velocity)
-        self._actor.set_transform(self._spawn_point)
-        new_status = py_trees.common.Status.SUCCESS
-        return new_status
-    '''def __init__(self, actor, actor_type, transform, color=None, name="SpawnActor"):
-        """
-        Setup class members
-        """
-        super(AddActor, self).__init__(name)
-        self._actor_type = actor_type
-        self._spawn_point = transform
-        self._color = color
-
-    def update(self):
-        new_status = py_trees.common.Status.RUNNING
-        try:
-            new_actor = CarlaDataProvider.request_new_actor(
-                self._actor_type, self._spawn_point, color=self._color)
-            if new_actor:
-                new_status = py_trees.common.Status.SUCCESS
-            new_status = py_trees.common.Status.SUCCESS
-        except:  # pylint: disable=bare-except
-            print("ActorSource unable to spawn actor")
-        return new_status'''
-
-
 class ActorTransformSetter(AtomicBehavior):
 
     """
