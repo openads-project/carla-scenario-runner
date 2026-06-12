@@ -743,6 +743,14 @@ class ChangeActorWaypoints(AtomicBehavior):
     - ChangeActorLateralMotion
     - ChangeActorLaneOffset
 
+    Different modes are possible to change waypoints: replay (rts) and advanced replay (arts). These can be specified in OpenSCENARIO parameters. Example (to be included in <Trajectory> within a <FollowTrajectoryAction>):
+    <ParameterDeclarations>
+        <ParameterDeclaration name="arts" parameterType="string" value="True" />  # mode "arts" chosen"
+        <ParameterDeclaration name="check_for_prioritization_rule" parameterType="string" value="left_before_right" />  # rules arts vehicles should follow
+        <ParameterDeclaration name="check_for_prioritization_rule" parameterType="string" value="is_behind" />  # rules arts vehicles should follow
+    </ParameterDeclarations>
+    A general logic of arts can be found her: https://www.vvm-projekt.de/securedl/sdl-eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NDc3MTQ2NTAsImV4cCI6MTc0NzgwNDY1MCwidXNlciI6MCwiZ3JvdXBzIjpbMCwtMV0sImZpbGUiOiJmaWxlYWRtaW4vdXNlcl91cGxvYWQvUGFwZXJzL0RlbGl2ZXJhYmxlMTMtU2NlbmFyaW8tYmFzZWRfTW9kZWxfb2ZfdGhlX09ERF90aHJvd_d6a6870608afd5e8/Deliverable13-Scenario-based_Model_of_the_ODD_through_Scenario_Databases.pdf
+
     Args:
         actor (carla.Actor): Controlled actor.
         waypoints (List of (OSC position, OSC route option)): List of (Position, Route Option) as OpenScenario elements.
@@ -798,7 +806,7 @@ class ChangeActorWaypoints(AtomicBehavior):
 
     def _get_arts_config(self, args):
         """
-        create config for arts to avoid magic numbers
+        create config for arts to prevent unwanted accidents
         """
         # set default config 
         config = {
@@ -1289,6 +1297,9 @@ class ChangeActorWaypoints(AtomicBehavior):
         return approx_distance, can_be_reached
     
     def _get_bb_shapely(self, location, rotation, length, width):
+        """
+        get shapely bounding box of element with dimensions, location and rotation
+        """
         # check if length and width is feasible (is done since carla bounding boxes for bicyclist have width and length 0):
         if length == 0:
             length = 1.5
