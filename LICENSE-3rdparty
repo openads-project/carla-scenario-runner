@@ -1,0 +1,16 @@
+# Third-Party Licenses
+
+This project includes the following third-party dependencies and to some extent files. Each is used unmodified. The original licenses apply.
+
+---------------------------------------------------------------
+Additional third-party assets included in this repository:
+
+---------------------------------------------------------------
+
+1. ASAM OpenSCENARIO XSD schemas (files in `srunner/openscenario`)
+- License: ASAM license terms
+- Source: https://www.asam.net/standards/detail/openscenario/
+
+---------------------------------------------------------------
+
+This file is provided for informational purposes and to assist in license compliance.
