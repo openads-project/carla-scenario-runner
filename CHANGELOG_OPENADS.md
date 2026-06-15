@@ -14,7 +14,6 @@
 - `ros_vehicle_control_route_action.py` controller to control OpenADStack (!4)
 - `approaching_control.py` controller for waypoint following with TTC/THW-based braking behavior
 - Improve `npc_vehicle_control.py` controller (!11)
-- Update robustness of npc controller
 - Add ARTS and RTS controller options (!14, !23)
 - Improve data provider checks for scenario state and route completion (!25)
 
@@ -24,7 +23,7 @@
 - Updated Docker image to Ubuntu 24.04 with Python 3.12 and streamlined PythonAPI dependencies (!26)
 - Fixed autopilot class naming (`carla_autopilot`) (!26)
 - Updated vehicle defaults for UE5 (no dedicated MR found)
-- `scenario_runner_server.py` to control scenario_runner from other container (!10)
+- `scenario_runner_server.py` HTTP wrapper to trigger `scenario_runner.py` from other containers (!10)
 
 ## Visualization and defaults
 
