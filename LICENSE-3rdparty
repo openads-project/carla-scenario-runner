@@ -1,6 +1,10 @@
 # Third-Party Licenses
 
-This project includes the following third-party dependencies and to some extent files. Each is used unmodified. The original licenses apply.
+This project is a fork of the official CARLA ScenarioRunner repository
+(`carla-simulator/scenario_runner`, https://github.com/carla-simulator/scenario_runner).
+This file documents third-party dependencies and files that are included by
+changes made in this fork relative to that official upstream repository. Each is
+used unmodified. The original licenses apply.
 
 ---------------------------------------------------------------
 Additional third-party assets included in this repository:
