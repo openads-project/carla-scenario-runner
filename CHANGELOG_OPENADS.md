@@ -7,6 +7,7 @@
 - Option to execute folders with many OpenSCENARIO files (!6)
 - Enable world reloading also for xodr maps (!6)
 - Modified `scenario_runner.py` to return the result of scenario execution as exit code (!25)
+- Fixed controller assignmend for actors spawned during runtime (AddActor) (!32)
 - Export scenario evaluation summary (!6)
 
 ## ROS and controller integration
