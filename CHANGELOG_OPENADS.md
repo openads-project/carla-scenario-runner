@@ -11,8 +11,9 @@
 
 ## ROS and controller integration
 
-- `ros_vehicle_control.py` controller to control OpenADStack (!4)
-- Improve follow trajectory controller (!11)
+- `ros_vehicle_control_route_action.py` controller to control OpenADStack (!4)
+- `approaching_control.py` controller for waypoint following with TTC/THW-based braking behavior
+- Improve `npc_vehicle_control.py` controller (!11)
 - Update robustness of npc controller
 - Add ARTS and RTS controller options (!14, !23)
 - Improve data provider checks for scenario state and route completion (!25)
