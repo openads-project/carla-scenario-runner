@@ -34,8 +34,8 @@ jobs:
       - uses: robinraju/release-downloader@v1.8
         name: Download PythonAPI
         with:
-          repository: ika-rwth-aachen/carla-simulator
-          tag: v0.9.16
+          repository: openads-project/carla-simulator
+          tag: v0.10.0-1.0.0
           fileName: PythonAPI.tar.gz
           extract: true          
           out-file-path: .

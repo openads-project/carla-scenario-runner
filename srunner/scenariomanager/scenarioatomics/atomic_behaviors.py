@@ -435,6 +435,7 @@ class UpdateAllActorControls(AtomicBehavior):
 
         for actor_id in actor_dict:
             actor_dict[actor_id].run_step()
+
         return py_trees.common.Status.RUNNING
 
 

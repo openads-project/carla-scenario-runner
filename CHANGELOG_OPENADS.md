@@ -2,29 +2,32 @@
 
 ## OpenSCENARIO and scenario execution
 
-- Control the RT factor (!21)
-- Support OpenSCENARIO 1.1 (!14)
-- Option to execute folders with many OpenSCENARIO files (!6)
-- Enable world reloading also for xodr maps (!6)
-- Modified `scenario_runner.py` to return the result of scenario execution as exit code (!25)
-- Export scenario evaluation summary (!6)
+- Added realtime-factor control for synchronous scenario execution and fixed RT-factor computation.
+- Added OpenSCENARIO 1.1 support with dedicated XSD schemas.
+- Added support for scenarios with entities that are spawned dynamically after scenario start.
+- Added support for executing folders containing multiple OpenSCENARIO files.
+- Enabled world reloading for XODR maps.
+- Changed `scenario_runner.py` to propagate scenario success or failure through the process exit code.
+- Exported scenario evaluation summaries and connected the execution result to the metrics/output handling.
 
 ## ROS and controller integration
 
-- `ros_vehicle_control_route_action.py` controller to control OpenADStack (!4)
-- `approaching_control.py` controller for waypoint following with TTC/THW-based braking behavior
-- Improve `npc_vehicle_control.py` controller (!11)
-- Add ARTS and RTS controller options (!14, !23)
-- Improve data provider checks for scenario state and route completion (!25)
+- Added `ros_vehicle_control_route_action.py` to control OpenADStack through the route-planning action interface.
+- Added `approaching_control.py` for waypoint following with TTC/THW-based braking behavior, including intersection handling.
+- Improved `npc_vehicle_control.py` and `FollowTrajectoryAction` speed handling.
+- Added new RTS and ARTS controller options and examples.
+- Added new ROS 2 route controller using derived route goals from OpenSCENARIO definitions.
+- Improved data-provider checks for scenario state, route completion, and route-action result callbacks.
 
 ## Build, CI and runtime environment
 
-- Created GitHub workflow and Dockerfile to automatically build Docker images (!9)
-- Updated Docker image to Ubuntu 24.04 with Python 3.12 and streamlined PythonAPI dependencies (!26)
-- Fixed autopilot class naming (`carla_autopilot`) (!26)
-- Updated vehicle defaults for UE5 (no dedicated MR found)
-- `scenario_runner_server.py` HTTP wrapper to trigger `scenario_runner.py` from other containers (!10)
+- Updated the Docker image to CARLA 0.10.0, Ubuntu 24.04, and Python 3.12.
+- Added automatic Docker image CI builds, both standalone and ROS 2 aligned using docker-ros.
+- Added `scenario_runner_server.py`, a Flask-based HTTP wrapper for triggering `scenario_runner.py` from other containers and returning execution output.
+- Fixed autopilot class naming to use `carla_autopilot`.
+- Updated vehicle defaults for UE5.
 
 ## Visualization and defaults
 
-- Set spectator view to ego_vehicle (!6)
+- Set the spectator view to the `ego_vehicle` at scenario start.
+- Update blueprint defaults for CARLA 0.10.0 and Unreal 5

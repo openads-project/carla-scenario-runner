@@ -1,31 +1,28 @@
-# Control Actor: *carla-scenario-runner*
+# carla-scenario-runner
 
-> [!IMPORTANT]
-> This repository is a fork of the [carla-scenario-runner](https://github.com/ika-rwth-aachen/carla-scenario-runner)! All initial and following modifications to the parent repository are documented in [IKA_CHANGELOG.md](./IKA_CHANGELOG.md).
-
----
-
-## IKA GitHub README
-
-<p align="left">
-  <img src="https://img.shields.io/github/v/release/ika-rwth-aachen/carla-scenario-runner"/>
-  <img src="https://img.shields.io/github/license/ika-rwth-aachen/carla-scenario-runner"/>
-  <a href="https://github.com/ika-rwth-aachen/carla-scenario-runner/actions/workflows/docker.yml">
-  <img src="https://github.com/ika-rwth-aachen/carla-scenario-runner/actions/workflows/docker.yml/badge.svg"/></a>
-  <img src="https://img.shields.io/badge/Ubuntu-22.04-E95420"/>
-  <img src="https://img.shields.io/badge/CARLA-0.9.16-blueviolet"/>
+<p align="center">
+  <a href="https://github.com/openads-project"><img src="https://img.shields.io/badge/OpenADS-f5ff01"/></a>
+  <a href="https://github.com/openads-project/carla-scenario-runner/releases/latest"><img src="https://img.shields.io/github/v/release/openads-project/carla-scenario-runner"/></a>
+  <a href="https://github.com/openads-project/carla-scenario-runner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/openads-project/carla-scenario-runner"/></a>
+  <br>
+  <img src="https://img.shields.io/badge/Ubuntu-24.04-E95420"/>
+  <img src="https://img.shields.io/badge/CARLA-0.10.0-blueviolet"/>
   <img src="https://img.shields.io/badge/Python-3.12-blueviolet"/>
-  <img src="https://img.shields.io/github/stars/ika-rwth-aachen/carla-scenario-runner?style=social"/>
+  <a href="https://www.ros.org"><img src="https://img.shields.io/badge/ROS 2-jazzy-22314e"/></a>
+  <a href="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker.yml"><img src="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker.yml/badge.svg"/></a>
+  <a href="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker-ros.yml"><img src="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker-ros.yml/badge.svg"/></a>
 </p>
 
+**OpenSCENARIO execution for scenario-based testing and evaluation in CARLA**
+
 > [!IMPORTANT]
-> This repository is a minimal fork of the official [scenario_runner](https://github.com/carla-simulator/scenario_runner)! All initial and following modifications to the original repository are documented in [CARLOS_CHANGELOG.md](./CARLOS_CHANGELOG.md).
+> This repository is a fork of the official CARLA [scenario_runner](https://github.com/carla-simulator/scenario_runner). All initial and following modifications to the original repository are documented in [CHANGELOG_OPENADS.md](./CHANGELOG_OPENADS.md).
+
+> [!IMPORTANT]
+> This repository is part of [***OpenADS***](https://github.com/openads-project), the *Open Automated Driving Systems* project. *OpenADS* and its modules have been initiated and are currently being maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/de/).
+
 > [!TIP]
-> We recommend to use the *carla-scenario-runner* as **control actor** in our open, modular and scalable simulation framework <a href="https://github.com/ika-rwth-aachen/carlos">**CARLOS**. <img src="https://img.shields.io/github/stars/ika-rwth-aachen/carlos?style=social"/></a> 
->
-> The *carla-scenario-runner* is used to enable scenario-based testing and evaluation. It is a powerful engine that follows the OpenSCENARIO standard for scenario definitions.
-> [!NOTE]
-> We set up a Continous Integration (CI) pipeline as [GitHub workflow](./github/workflows/docker.yml) to continously build Docker images for the `carla-scenario-runner`, publicly available on [Docker Hub](https://hub.docker.com/r/rwthika/carla-scenario-runner).
+> We recommend to use the *carla-scenario-runner* as **control actor** in our open, modular and scalable simulation framework <a href="https://github.com/openads-project/openadsim">**OpenADSim**.
 
 ---
 ---

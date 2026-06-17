@@ -1,12 +1,9 @@
 #!/usr/bin/env python
-
-# Copy from ros-bridge/carla_ros_scenario_runner/src/carla_ros_scenario_runner
-
-# Copyright (c) 2018-2020 Intel Corporation
+#
+# Copyright (c) Institute for Automotive Engineering (ika), RWTH Aachen University
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
-
 """
 ROS Vehicle Control that sends route action from scenario
 """
