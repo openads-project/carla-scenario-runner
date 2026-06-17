@@ -22,8 +22,7 @@ mv carla-ros-bridge/ros_compatibility "$WORKSPACE/src/target"
 rm -rf carla-ros-bridge
 
 
-export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
-export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
+export SCENARIO_RUNNER_ROOT=/docker-ros/additional-files
 export CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image&job_token=$GIT_HTTPS_PASSWORD"
 
 # docker-ros copies ADDITIONAL_FILES_DIR entries with Docker ADD. With './*',

@@ -9,7 +9,6 @@ SHELL ["/bin/bash", "-c"]
 ARG CARLA_PATH=/opt/carla
 ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
-ARG CARLA_ARTIFACTS_PATH=docker/PythonAPI
 
 ARG ARTIFACTS_URL
 ARG CI_JOB_TOKEN
@@ -38,11 +37,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
 ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
-RUN if [[ -n "${ARTIFACTS_URL}" ]]; then \
-        export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}"; \
-    else \
-        export CARLA_ARTIFACTS_PATH="$SCENARIO_RUNNER_PATH/$CARLA_ARTIFACTS_PATH"; \
-    fi && \
+RUN export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" \
     CARLA_SETUP_SCRIPT=/setup_carla_env.sh \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     bash "$SCENARIO_RUNNER_PATH/docker/install.sh" && \

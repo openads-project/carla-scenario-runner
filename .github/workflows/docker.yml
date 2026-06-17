@@ -35,15 +35,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: robinraju/release-downloader@v1.8
-        name: Download PythonAPI
-        with:
-          repository: openads-project/carla-simulator
-          tag: v0.10.0-1.0.0
-          fileName: PythonAPI.tar.gz
-          extract: true
-          out-file-path: carla-scenario-runner/docker
         
       - name: Set image tag
         run: |
