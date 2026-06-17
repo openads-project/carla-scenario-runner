@@ -1,0 +1,36 @@
+name: docker-ros
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-ros:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ika-rwth-aachen/docker-ros@main
+        with:
+          platform: amd64
+          target: dev,run
+          base-image: rwthika/ros2:jazzy
+          image-name: ghcr.io/${{ github.repository }}/ros
+          rmw-implementation: rmw_zenoh_cpp
+          command: source /opt/carla/setup.bash && ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner.launch.py scenario_runner_path:=$SCENARIO_RUNNER_ROOT
+          enable-industrial-ci: false
+          vcs-import-file: docker-ros/carla-scenario-runner-ros.repos
+          additional-files-dir: './*'
+          additional-pip-file: docker-ros/additional-pip-requirements.txt
+          after-dependency-installation-script: docker-ros/custom.sh
+          label-maintainer: Institute for Automotive Engineering (ika), RWTH Aachen University <opensource@ika.rwth-aachen.de>
+          label-authors: Institute for Automotive Engineering (ika), RWTH Aachen University <opensource@ika.rwth-aachen.de>
+        env:
+          TARGET_CMAKE_ARGS: -DCMAKE_EXPORT_COMPILE_COMMANDS=1

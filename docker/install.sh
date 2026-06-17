@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${CARLA_ARTIFACTS_URL:?CARLA_ARTIFACTS_URL must point to the CARLA artifacts zip}"
 : "${SCENARIO_RUNNER_ROOT:?SCENARIO_RUNNER_ROOT must point to the Scenario Runner checkout}"
+
+if [[ -z "${CARLA_ARTIFACTS_URL:-}" && -z "${CARLA_ARTIFACTS_PATH:-}" ]]; then
+    echo "Either CARLA_ARTIFACTS_URL or CARLA_ARTIFACTS_PATH must point to the CARLA artifacts" >&2
+    exit 1
+fi
 
 CARLA_PATH="${CARLA_PATH:-/opt/carla}"
 CARLA_API_PATH="${CARLA_API_PATH:-$CARLA_PATH/PythonAPI}"
@@ -21,11 +25,19 @@ trap cleanup EXIT
 # Install Scenario Runner Python dependencies from the copied repository.
 "$PYTHON_BIN" -m pip install -r "$SCENARIO_RUNNER_ROOT/requirements.txt"
 
-# Download and install CARLA PythonAPI artifacts.
+# Download or install CARLA PythonAPI artifacts.
 mkdir -p "$CARLA_PATH"
-curl --location --output "$artifacts_dir/artifacts.zip" "$CARLA_ARTIFACTS_URL"
-unzip -q "$artifacts_dir/artifacts.zip" -d "$artifacts_dir"
-mv "$artifacts_dir/artifacts/PythonAPI" "$CARLA_PATH"
+if [[ -n "${CARLA_ARTIFACTS_PATH:-}" ]]; then
+    [[ -d "$CARLA_ARTIFACTS_PATH" ]] || {
+        echo "CARLA_ARTIFACTS_PATH must point to an unpacked PythonAPI directory" >&2
+        exit 1
+    }
+    mv "$CARLA_ARTIFACTS_PATH" "$CARLA_API_PATH"
+else
+    curl --location --output "$artifacts_dir/artifacts.zip" "$CARLA_ARTIFACTS_URL"
+    unzip -q "$artifacts_dir/artifacts.zip" -d "$artifacts_dir"
+    mv "$artifacts_dir/artifacts/PythonAPI" "$CARLA_API_PATH"
+fi
 
 # Install PythonAPI requirements, keeping the version of the first occurrence.
 find "$CARLA_API_PATH" -type f -name "requirements.txt" -print0 | xargs -0 cat > "$requirements_raw"
