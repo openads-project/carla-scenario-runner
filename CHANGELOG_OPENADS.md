@@ -4,10 +4,10 @@
 
 - Added realtime-factor control for synchronous scenario execution and fixed RT-factor computation.
 - Added OpenSCENARIO 1.1 support with dedicated XSD schemas.
-- Added support for scenarios with entities that are spawned dynamically after scenario start.
 - Added support for executing folders containing multiple OpenSCENARIO files.
 - Enabled world reloading for XODR maps.
 - Changed `scenario_runner.py` to propagate scenario success or failure through the process exit code.
+- Fixed controller assignmend for actors spawned during runtime (AddActor)
 - Exported scenario evaluation summaries and connected the execution result to the metrics/output handling.
 
 ## ROS and controller integration
