@@ -37,9 +37,9 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
 ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
-RUN export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" \
-    CARLA_SETUP_SCRIPT=/setup_carla_env.sh \
-    PIP_BREAK_SYSTEM_PACKAGES=1 \
+RUN export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
+    export CARLA_SETUP_SCRIPT=/setup_carla_env.sh && \
+    export PIP_BREAK_SYSTEM_PACKAGES=1 && \
     bash "$SCENARIO_RUNNER_PATH/docker/install.sh" && \
     echo "source /setup_carla_env.sh" >> ~/.bashrc
 
