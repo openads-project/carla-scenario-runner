@@ -1,24 +1,25 @@
 name: Docker
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  
-  clean-up:
-    name: Clean up
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clean up
-        run: rm -rf *
-        
+          
   create-image:
     name: Create docker image
     runs-on: ubuntu-latest
-    needs: clean-up
     env: 
       IMAGE_TAG_SUFFIX: ""
     steps:
@@ -49,3 +50,6 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:latest${{env.IMAGE_TAG_SUFFIX}}
           no-cache: true
           context: carla-scenario-runner
+          build-args: |
+            # TODO: switch to openads-project
+            ARTIFACTS_URL=https://github.com/cgeller/carla/releases/download/test/PythonAPI.tar.gz

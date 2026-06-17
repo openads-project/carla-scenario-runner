@@ -11,7 +11,6 @@ ARG CARLA_API_PATH=/opt/carla/PythonAPI
 ARG SCENARIO_RUNNER_PATH=/opt/carla/carla-scenario-runner
 
 ARG ARTIFACTS_URL
-ARG CI_JOB_TOKEN
 
 # Install essentials
 RUN apt-get update && \
@@ -37,7 +36,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 12
 # Install scenario_runner
 COPY . $SCENARIO_RUNNER_PATH
 ENV SCENARIO_RUNNER_ROOT=${SCENARIO_RUNNER_PATH}
-RUN export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}&job_token=${CI_JOB_TOKEN}" && \
+RUN export CARLA_ARTIFACTS_URL="${ARTIFACTS_URL}" && \
     export CARLA_SETUP_SCRIPT=/setup_carla_env.sh && \
     export PIP_BREAK_SYSTEM_PACKAGES=1 && \
     bash "$SCENARIO_RUNNER_PATH/docker/install.sh" && \

@@ -9,11 +9,7 @@ apt-get install -y --no-install-recommends \
 
 # Copy over necessary ROS components from ros-bridge and remove the rest.
 mkdir -p "$WORKSPACE/src/target"
-if [[ -n "${GIT_HTTPS_USER:-}" && -n "${GIT_HTTPS_PASSWORD:-}" ]]; then
-    git clone --recurse-submodules "https://${GIT_HTTPS_USER}:${GIT_HTTPS_PASSWORD}@gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-ros-bridge.git"
-else
-    git clone --recurse-submodules "https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-ros-bridge.git"
-fi
+git clone --recurse-submodules "https://github.com/ika-rwth-aachen/carla-ros-bridge.git" # TODO: switch to openads-project
 mv carla-ros-bridge/carla_common "$WORKSPACE/src/target"
 mv carla-ros-bridge/carla_msgs "$WORKSPACE/src/target"
 mv carla-ros-bridge/carla_ros_scenario_runner "$WORKSPACE/src/target"
@@ -21,9 +17,9 @@ mv carla-ros-bridge/carla_ros_scenario_runner_types "$WORKSPACE/src/target"
 mv carla-ros-bridge/ros_compatibility "$WORKSPACE/src/target"
 rm -rf carla-ros-bridge
 
-
 export SCENARIO_RUNNER_ROOT=/docker-ros/additional-files
-export CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image&job_token=$GIT_HTTPS_PASSWORD"
+# TODO: switch to openads-project
+export CARLA_ARTIFACTS_URL="https://github.com/cgeller/carla/releases/download/test/PythonAPI.tar.gz"
 
 # docker-ros copies ADDITIONAL_FILES_DIR entries with Docker ADD. With './*',
 # the srunner directory contents land directly in additional-files.
