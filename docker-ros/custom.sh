@@ -24,6 +24,7 @@ rm -rf carla-ros-bridge
 
 export DOCKER_ROS_FILES_PATH=/docker-ros/additional-files
 export SCENARIO_RUNNER_ROOT=$DOCKER_ROS_FILES_PATH
+export CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image&job_token=$GIT_HTTPS_PASSWORD"
 
 # docker-ros copies ADDITIONAL_FILES_DIR entries with Docker ADD. With './*',
 # the srunner directory contents land directly in additional-files.
@@ -42,8 +43,7 @@ if [[ ! -f "$install_script" ]]; then
     exit 1
 fi
 
-CARLA_ARTIFACTS_URL="https://gitlab.ika.rwth-aachen.de/api/v4/projects/1645/jobs/artifacts/ue5-ika/download?job=build-client-docker-image&job_token=$GIT_HTTPS_PASSWORD" \
-    bash "$install_script"
+bash "$install_script"
 
 # Install missing ROS dependencies.
 apt-get install -y --no-install-recommends \
