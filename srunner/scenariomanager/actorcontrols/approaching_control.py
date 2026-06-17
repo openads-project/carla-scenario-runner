@@ -1,26 +1,39 @@
 #!/usr/bin/env python
-# Copyright (c) 2020-2021 Intel Corporation
+#
+# Copyright (c) Institute for Automotive Engineering (ika), RWTH Aachen University
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 """
-This module provides an control for vehicles following a predefined path and breaking for vehicles in front of it 
-(no matter if it is on an intersection or not)
+Actor control for vehicles that follow OpenSCENARIO-provided waypoints while
+adapting their speed to surrounding traffic.
 
-There is no sensor included, but ground trouth data is used 
+The controller steers the actor along a predefined path and uses CARLA ground
+truth actor data to estimate TTC/THW values for nearby road users. If the
+configured safety thresholds are violated, the actor brakes; otherwise it
+accelerates toward the configured target velocity.
 """
-from distutils.util import strtobool
-import math
 import carla
+import math
 import matplotlib.pyplot as plt
 import numpy as np
+import random
+import time
+
+from distutils.util import strtobool
 from shapely.geometry import Polygon
+
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-import time
 
 
 class ApproachingControl(BasicControl):
+    """
+    Waypoint-following vehicle controller with TTC/THW-based braking behavior.
+
+    Configuration values can be supplied through OpenSCENARIO controller
+    properties using the ``config_*`` prefix.
+    """
 
     def __init__(self, actor, args=None):
         """_summary_
@@ -59,7 +72,8 @@ class ApproachingControl(BasicControl):
             "reset_z_cooridinate": True,
             "detection_percentage": 100,
             "ttc_threshold": 1.5,
-            "thw_threshold": 0.5
+            "thw_threshold": 0.5,
+            "simplified_ttc": False
         }
         
         # automated casting and rewriting values from config if necessary - overwriting values from args
@@ -131,7 +145,7 @@ class ApproachingControl(BasicControl):
             ego_velocity_abs = self._calc_velocity(ego_velocity)
         except :
             # save ttc function
-            if not self.is_plotted and self.evaluation:
+            if not self.is_plotted and self.evaluation and debug:
                 self._print_ttcs()
             return
         
@@ -151,13 +165,15 @@ class ApproachingControl(BasicControl):
         self._actor.set_target_velocity(velocity_vector)
         
         """ from here acceleration/ deceleration """
-        ttc, ru_ttc = self._calc_advanced_ttx_metric(metric_type="ttc")
-        thw, ru_thw = self._calc_advanced_ttx_metric(metric_type="thw")
+        if self.config["simplified_ttc"]:
+            ttc = self._calculate_ttc_simplified()
+        else:
+            ttc, _ = self._calc_advanced_ttx_metric(metric_type="ttc")
+        thw, _ = self._calc_advanced_ttx_metric(metric_type="thw")
 
         self.ttc_values.append(ttc)
                 
-        # simulate that randomly vehicle is not detected
-        import random
+        # simulate that randomly vehicle is not detected (default: everything is detected)
         if random.randint(0, 100) < self.config["detection_percentage"]:
             is_detected = True
         else:
@@ -338,6 +354,10 @@ class ApproachingControl(BasicControl):
     
     def _check_projected_distance(self, predicted_ego_state, ego_vel_abs, object_ru, object_transform, 
                                   object_velocity, object_abs_velocity, timestep, max_time, project_object=True):
+        """
+        Checks whether ego can reach object within a given timeframe (max_time) assuming constant velocity.
+        Function aims to reduce computation effort to avoid ressource intensive calculations.
+        """
         approx_distance = math.inf
         can_be_reached = True
         
@@ -371,6 +391,10 @@ class ApproachingControl(BasicControl):
         return approx_distance, can_be_reached
     
     def _get_bb_shapely(self, location, rotation, length, width):
+        """
+        creates a shapely bounding box
+        """
+
         # check if length and width is feasible (is done since carla bounding boxes for bicyclist have width and length 0):
         if length == 0:
             length = 1.5
@@ -404,7 +428,8 @@ class ApproachingControl(BasicControl):
         
     def _predict_ego_state(self, ego_velocity_abs, considered_time_horizon_in_seconds, discretization, offset=0.0):
         """
-        predict ego state since there may be curves
+        predict ego state over time according to waypoints assuming constant velocity
+        returns: list of states incl. shapely bounding box, location and rotation
         """
         predicted_ego_state = []
         

@@ -25,7 +25,7 @@ trap cleanup EXIT
 mkdir -p "$CARLA_PATH"
 curl --location --output "$artifacts_dir/artifacts.zip" "$CARLA_ARTIFACTS_URL"
 unzip -q "$artifacts_dir/artifacts.zip" -d "$artifacts_dir"
-mv "$artifacts_dir/artifacts/PythonAPI" "$CARLA_PATH"
+mv "$artifacts_dir/artifacts/PythonAPI" "$CARLA_API_PATH"
 
 # Install PythonAPI requirements, keeping the version of the first occurrence.
 find "$CARLA_API_PATH" -type f -name "requirements.txt" -print0 | xargs -0 cat > "$requirements_raw"
@@ -43,9 +43,10 @@ if [[ ${#wheels[@]} -eq 0 ]]; then
 fi
 "$PYTHON_BIN" -m pip install --no-cache-dir "${wheels[0]}"
 
-# Create a script to append necessary paths to PYTHONPATH.
 mkdir -p "$(dirname "$CARLA_SETUP_SCRIPT")" "$CARLA_CACHE_DIR"
 chmod 1777 "$CARLA_CACHE_DIR"
+
+# Create a script to append necessary paths to PYTHONPATH.
 {
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla/agents"
     echo "export PYTHONPATH=\$PYTHONPATH:$CARLA_API_PATH/carla"

@@ -743,11 +743,11 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
             'trailer': '',
             'semitrailer': '',
             'bus': 'vehicle.fuso.mitsubishi',
-            'motorbike': 'vehicle.kawasaki.ninja',
-            'bicycle': 'vehicle.diamondback.century',
+            'motorbike': '',
+            'bicycle': '',
             'train': '',
             'tram': '',
-            'pedestrian': 'walker.pedestrian.0001',
+            'pedestrian': 'walker.pedestrian.0027',
             'misc': 'static.prop.streetbarrier'
         }
 

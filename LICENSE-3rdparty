@@ -1,0 +1,20 @@
+# Third-Party Licenses
+
+This project is a fork of the official CARLA ScenarioRunner repository
+(`carla-simulator/scenario_runner`, https://github.com/carla-simulator/scenario_runner).
+This file documents third-party dependencies and files that are included by
+changes made in this fork relative to that official upstream repository. Each is
+used unmodified. The original licenses apply.
+
+---------------------------------------------------------------
+Additional third-party assets included in this repository:
+
+---------------------------------------------------------------
+
+1. ASAM OpenSCENARIO XSD schemas (files in `srunner/openscenario`)
+- License: ASAM license terms
+- Source: https://www.asam.net/static_downloads/modelDocumentation/
+
+---------------------------------------------------------------
+
+This file is provided for informational purposes and to assist in license compliance.

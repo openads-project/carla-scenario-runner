@@ -178,6 +178,27 @@ def get_xml_path(tree, node):
     return path
 
 
+class EntityRefActor(object):
+    """
+    OpenSCENARIO entity reference for actors spawned later by AddEntityAction.
+    """
+
+    def __init__(self, rolename):
+        self.attributes = {"role_name": rolename}
+
+
+def get_story_added_entity_refs(stories):
+    """
+    Return entity names that are created during the Story phase.
+    """
+    added_entity_refs = set()
+    for story in stories:
+        for entity_action in story.iter("EntityAction"):
+            if entity_action.find("AddEntityAction") is not None:
+                added_entity_refs.add(entity_action.attrib.get("entityRef"))
+    return added_entity_refs
+
+
 class OpenScenario(BasicScenario):
 
     """
@@ -368,7 +389,19 @@ class OpenScenario(BasicScenario):
 
         stories_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL,
                                                         name="OSCStories")
-        joint_actor_list = self.other_actors + self.ego_vehicles + [None]
+        # Story AddEntityAction actors are not spawned yet, but ManeuverGroup
+        # actor lookup still needs their role names while building the tree.
+        spawned_actor_names = {
+            actor.attributes["role_name"]
+            for actor in self.other_actors + self.ego_vehicles
+            if actor is not None and "role_name" in actor.attributes
+        }
+        pending_actors = [
+            EntityRefActor(actor.rolename)
+            for actor in self.config.other_actors
+            if actor.rolename not in spawned_actor_names
+        ]
+        joint_actor_list = self.other_actors + self.ego_vehicles + pending_actors + [None]
 
         for story in self.config.stories:
             story_name = story.get("name")
@@ -616,24 +649,17 @@ class OpenScenario(BasicScenario):
                             if actor.rolename == entity_ref:
                                 config.other_actors.remove(actor)
 
-            # workaround since new spawned actors cannot be controlled in actual version - so spawn all vehicles outside relevant map
-            added_entity_refs = 0
-            maneuvergroups = config.stories[0].find("Act").findall("ManeuverGroup")
-            for maneuvergroup in maneuvergroups:
-                for maneuver in maneuvergroup.findall("Maneuver"):
-                    for event in maneuver.findall("Event"):
-                        for action in event.findall("Action"):
-                            for global_action in action.findall("GlobalAction"):
-                                for entity_action in global_action.findall("EntityAction"):
-                                    entity_ref = entity_action.attrib.get("entityRef")
-                                    if entity_action.find("AddEntityAction") is not None:
-                                        for actor in config.other_actors:
-                                            if actor.rolename == entity_ref:
-                                                actor.transform.location.x = 1000.0 + 10.0*added_entity_refs
-                                                actor.transform.location.z -= 20.0
-                                                added_entity_refs += 1
+            # Entities added by Story actions must not be part of the initial
+            # CARLA batch spawn, otherwise AddEntityAction creates duplicates.
+            added_entity_refs = get_story_added_entity_refs(config.stories)
+            initial_actors = [
+                actor for actor in config.other_actors
+                if actor.rolename not in added_entity_refs
+            ]
+            if not initial_actors:
+                return
 
-            new_actors = CarlaDataProvider.request_new_actors(config.other_actors)
+            new_actors = CarlaDataProvider.request_new_actors(initial_actors)
             if not new_actors:
                 raise Exception("Error: Unable to add actors")
             for new_actor in new_actors:

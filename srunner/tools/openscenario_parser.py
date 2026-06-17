@@ -1302,9 +1302,11 @@ class OpenScenarioParser(object):
                                 entity_ref_actor = _actor
                                 break
                     if entity_ref_actor is None:
-                        print("Entity ref for actor which cannot be found: " + str(entity_action.attrib.get('entityRef')))
-                        raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = ActorDestroy(entity_ref_actor)
+                        # Story AddEntityAction actors may not exist when the
+                        # tree is built; resolve them by role name at runtime.
+                        atomic = ActorDestroy(None, actor_name=entity_ref)
+                    else:
+                        atomic = ActorDestroy(entity_ref_actor)
                 elif entity_action.find('AddEntityAction') is not None:
                     position = entity_action.find('AddEntityAction').find("Position")
                     actor_transform = OpenScenarioParser.convert_position_to_transform(position)
@@ -1315,7 +1317,11 @@ class OpenScenarioParser(object):
                             break
                     if entity_ref_actor is None:
                         raise AttributeError("Cannot find actor '{}' for condition".format(entity_ref_actor))
-                    atomic = AddActor(actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color)
+                    # Preserve the OpenSCENARIO entity name as CARLA role_name
+                    # so later actions/conditions can resolve the spawned actor.
+                    atomic = AddActor(actor, entity_ref_actor.model, actor_transform, color=entity_ref_actor.color,
+                                      actor_name=entity_ref_actor.rolename,
+                                      actor_category=entity_ref_actor.category)
             else:
                 raise NotImplementedError("Global actions are not yet supported")
         elif action.find('UserDefinedAction') is not None:

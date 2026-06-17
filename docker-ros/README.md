@@ -1,54 +1,48 @@
-# Scenario Runner ROS
+# `carla_ros_scenario_runner`
 
-This repository aims to provide standalone images of the [CARLA ROS Scenario Runner](https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-scenario-runner) for usage in CI pipelines, cluster deployments etc. by utilizing [docker-ros](https://gitlab.ika.rwth-aachen.de/fb-fi/ops/docker-ros).
+Runs OpenSCENARIO scenarios in CARLA via ROS.
 
-**Note:**
-
-The scenario runner used here is from a fork created by **ika**, which is integrated as a submodule. Additionally, some components of the [carla-ros-bridge](https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-ros-bridge) fork by **ika** (especially the scenario runner ROS node) are integrated by cloning and copying them over when building the image.
-
-- [Nodes](#nodes)
-  - [carla_ros_scenario_runner/carla_ros_scenario_runner_node.py](#carla_ros_scenario_runnercarla_ros_scenario_runnerpy)
-- [Usage of docker-ros Images](#usage-of-docker-ros-images)
-  - [Available Images](#available-images)
-  - [Default Command](#default-command)
-  - [Environment Variables](#environment-variables)
-  - [Launch Files](#launch-files)
-  - [Configuration Files](#configuration-files)
-  - [Additional Remarks](#additional-remarks)
-- [Building Locally](#building-locally)
-  - [Requirements](#requirements)
-  - [Steps](#steps)
-- [Official Documentation](#official-documentation)
-
+This [docker-ros](https://github.com/ika-rwth-aachen/docker-ros) pipeline packages the [OpenADS CARLA Scenario Runner](github.com/openads-project/carla-scenario-runner) together with the [ROS 2 scenario runner node](https://github.com/openads-project/carla-ros-bridge/tree/carla_ros_scenario_runner). The resulting images provide a reproducible setup for running OpenSCENARIO files with CARLA
 
 ## Nodes
 
-| Package | Node | Description |
-| --- | --- | --- |
-| `carla_ros_scenario_runner` | `carla_ros_scenario_runner.py` | Offers service to execute OpenScenarios on CARLA via ROS |
+### `carla_ros_scenario_runner`
 
-### carla_ros_scenario_runner/carla_ros_scenario_runner.py
+The `carla_ros_scenario_runner` node exposes a ROS service for executing OpenSCENARIO scenarios in CARLA. When a new scenario is requested while another scenario is still running, the running scenario is stopped before the new one is executed. The current scenario runner state is published continuously so downstream tools, including RViz integrations, can observe the execution status.
 
-This node, besides other components, comes from the ika fork of the [carla-ros-bridge](https://gitlab.ika.rwth-aachen.de/fb-fi/simulation/carla/carla-ros-bridge) and is cloned into images of this project during the build.
-
-Also see the [official documentation](https://carla.readthedocs.io/projects/ros-bridge/en/latest/carla_ros_scenario_runner/)
+```mermaid
+flowchart LR
+    NODE("carla_ros_scenario_runner")
+    NODE -->|/scenario_runner/status| P0:::hidden
+    S0:::hidden o-.-o|/scenario_runner/execute_scenario| NODE
+    classDef hidden display: none;
+```
 
 #### Published Topics
 
 | Topic | Type | Description |
 | --- | --- | --- |
-| `/scenario_runner/status` | `carla_ros_scenario_runner_types.CarlaScenarioRunnerStatus` | The current status of the scenario runner execution (used by the [rviz_carla_plugin](https://carla.readthedocs.io/projects/ros-bridge/en/latest/rviz_plugin/)) |
+| `/scenario_runner/status` | `carla_ros_scenario_runner_types/msg/CarlaScenarioRunnerStatus` | current scenario runner execution status |
 
 #### Services
 
 | Service | Type | Description |
 | --- | --- | --- |
-| `/scenario_runner/execute_scenario` | `carla_ros_scenario_runner_types.ExecuteScenario` | Execute a scenario. If another scenario is currently running, it gets stopped. |
+| `/scenario_runner/execute_scenario` | `carla_ros_scenario_runner_types/srv/ExecuteScenario` | execute an OpenSCENARIO scenario; stops any currently running scenario first |
 
+## Launch Files
+
+### [`carla_ros_scenario_runner.launch.py`](https://github.com/openads-project/carla-ros-bridge/tree/carla_ros_scenario_runner/launch/carla_ros_scenario_runner.launch.py)
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `host` | `"localhost"` | CARLA host |
+| `port` | `"2000"` | CARLA port |
+| `role_name` | `"ego_vehicle"` | ego vehicle role name |
+| `scenario_runner_path` | required | path to the Scenario Runner installation used by the node |
+| `wait_for_ego` | `"True"` | wait for the ego vehicle before running a scenario |
 
 ## Official Documentation
 
 - [Scenario Runner](https://github.com/carla-simulator/scenario_runner)
-- [CARLA ROS Scenario Runner](https://carla.readthedocs.io/projects/ros-bridge/en/latest/carla_ros_scenario_runner/)
-
-
+- [CARLA ROS Scenario Runner](https://github.com/carla-simulator/ros-bridge/tree/master/carla_ros_scenario_runner)

@@ -59,7 +59,7 @@ from srunner.scenarios.osc2_scenario import OSC2Scenario
 from srunner.scenarioconfigs.osc2_scenario_configuration import OSC2ScenarioConfiguration
 
 # Minimum version of CARLA that is required
-MIN_CARLA_VERSION = '0.9.16'
+MIN_CARLA_VERSION = '0.10.0'
 
 
 class ScenarioRunner(object):
@@ -214,7 +214,7 @@ class ScenarioRunner(object):
         for i, _ in enumerate(self.ego_vehicles):
             if self.ego_vehicles[i]:
                 if not self._args.waitForEgo and self.ego_vehicles[i] is not None and self.ego_vehicles[i].is_alive:
-                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id) + " in scenario_runner.py/_cleanup. Error may occur due to Carla issue.")
+                    print("Destroying ego vehicle {}".format(self.ego_vehicles[i].id))
                     self.ego_vehicles[i].destroy()
                 self.ego_vehicles[i] = None
         self.ego_vehicles = []
