@@ -51,5 +51,4 @@ jobs:
           no-cache: true
           context: carla-scenario-runner
           build-args: |
-            # TODO: switch to openads-project
-            ARTIFACTS_URL=https://github.com/cgeller/carla/releases/download/test/PythonAPI.tar.gz
+            ARTIFACTS_URL=https://github.com/openads-project/carla-simulator/releases/download/v0.10.0-1.0.0/PythonAPI.tar.gz
