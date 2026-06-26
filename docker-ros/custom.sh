@@ -9,7 +9,7 @@ apt-get install -y --no-install-recommends \
 
 # Copy over necessary ROS components from ros-bridge and remove the rest.
 mkdir -p "$WORKSPACE/src/target"
-git clone --recurse-submodules "https://github.com/ika-rwth-aachen/carla-ros-bridge.git" # TODO: switch to openads-project
+git clone --recurse-submodules "https://github.com/openads-project/carla-ros-bridge.git"
 mv carla-ros-bridge/carla_common "$WORKSPACE/src/target"
 mv carla-ros-bridge/carla_msgs "$WORKSPACE/src/target"
 mv carla-ros-bridge/carla_ros_scenario_runner "$WORKSPACE/src/target"
