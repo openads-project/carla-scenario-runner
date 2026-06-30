@@ -24,7 +24,7 @@ jobs:
           base-image: rwthika/ros2:jazzy
           image-name: ghcr.io/${{ github.repository }}/ros
           rmw-implementation: rmw_zenoh_cpp
-          command: source /opt/carla/setup.bash && ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner.launch.py scenario_runner_path:=$SCENARIO_RUNNER_ROOT
+          command: bash -ic "ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner.launch.py scenario_runner_path:=$SCENARIO_RUNNER_ROOT"
           enable-industrial-ci: false
           vcs-import-file: docker-ros/carla-scenario-runner-ros.repos
           additional-files-dir: './*'

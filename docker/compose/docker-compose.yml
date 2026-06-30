@@ -1,0 +1,18 @@
+services:
+
+  carla-scenario-runner-ros:
+    image: ghcr.io/openads-project/carla-scenario-runner/ros:v0.10.0-1.0.0
+    environment:
+      # --- name ------
+      CARLA_HOST: carla-simulator
+      CARLA_PORT: 2000
+      SCENARIO_DIRECTORY: /scenarios
+    command:
+      - /bin/bash
+      - -ic
+      - |
+        ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner_with_selection.launch.py \
+          host:=$$CARLA_HOST \
+          port:=$$CARLA_PORT \
+          scenario_dir:=$$SCENARIO_DIRECTORY \
+          scenario_runner_path:=$$SCENARIO_RUNNER_ROOT
