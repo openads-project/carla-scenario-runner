@@ -35,12 +35,12 @@ class RosVehicleControlRouteAction(BasicControl):
         print(f"RosVehicleControlRouteAction args: {args}", flush=True)
 
         params = {}
-        params["trajectory_topic"] = "/planning/drivable_trajectory"
+        params["trajectory_topic"] = "/planning/trajectory_optimization/trajectory"
         params["route_action"] = "/planning/lanelet2_route_planning/plan_route"
 
-        self._initial_speed_duration = float(args.get("initial_speed_duration", 0.5))
+        self._initial_speed_duration = float(args.get("initial_speed_duration", 0.1))
         self._initial_speed_end_time = None
-        self._route_action_offset = float(args.get("route_action_offset", 0.2))
+        self._route_action_offset = float(args.get("route_action_offset", 0.1))
         self._route_action_time = None
         self._debug_time_offset = float(args.get("debug_time_offset", 0.0))
 
@@ -71,7 +71,8 @@ class RosVehicleControlRouteAction(BasicControl):
     def run_step(self):
         time = self._get_sim_time()
 
-        self.check_requirements()
+        if not self.check_requirements():
+            return
 
         # This is a debugging workaround for visualization only.
         if time < self._debug_time_offset:
@@ -96,22 +97,28 @@ class RosVehicleControlRouteAction(BasicControl):
     def check_requirements(self):
 
         if not CarlaDataProvider.is_scenario_running():
-            return
+            return False
 
         if not self.node.goal_pose:
-            return
+            return False
 
         if not self.node.stack_ready:
-            return
+            return False
 
         if self.node.reached_goal:
-            return
+            return False
+
+        return True
 
     def update_waypoints(self, waypoints, start_time=None):
         self.node.set_goal_pose(waypoints)
         self._initial_speed_end_time = None
         self._route_action_time = None
         return super().update_waypoints(waypoints, start_time)
+
+    def update_final_route_goal(self, waypoint):
+        """Set the exact OpenSCENARIO endpoint independently of the planned route."""
+        self.node.set_goal_pose([waypoint])
 
     def check_reached_waypoint_goal(self):
         return self.node.reached_goal

@@ -999,6 +999,9 @@ class ChangeActorWaypoints(AtomicBehavior):
 
         actor_dict[self._actor.id].update_waypoints(
             route, times=self._times, start_time=self._start_time)
+        control_instance = actor_dict[self._actor.id].control_instance
+        if carla_route_elements and hasattr(control_instance, "update_final_route_goal"):
+            control_instance.update_final_route_goal(carla_route_elements[-1][0])
 
         super().initialise()
 
@@ -1041,9 +1044,11 @@ class ChangeActorWaypoints(AtomicBehavior):
                         final_waypoint = self._waypoints[-1]
                         final_transform = sr_tools.openscenario_parser.OpenScenarioParser.convert_position_to_transform(
                             final_waypoint[0])
-                        self._actor.set_transform(final_transform)
-                        self._actor.set_target_velocity(carla.Vector3D(0.0, 0.0, 0.0))
-                        actor.update_target_speed(0.0)
+                        self._apply_rts_state(
+                            actor,
+                            final_transform,
+                            carla.Vector3D(0.0, 0.0, 0.0),
+                            0.0)
                     return py_trees.common.Status.SUCCESS
                 try:
                     # check first if actor is available or already deleted - if deleted, no speed can be set anymore and no waypoints are needed
@@ -1121,9 +1126,8 @@ class ChangeActorWaypoints(AtomicBehavior):
 
             target_speed = math.sqrt(
                 velocity_vector.x**2 + velocity_vector.y**2 + velocity_vector.z**2)
-            self._actor.set_transform(interpolated_transform)
-            self._actor.set_target_velocity(velocity_vector)
-            actor.update_target_speed(target_speed)
+            self._apply_rts_state(
+                actor, interpolated_transform, velocity_vector, target_speed)
             return
 
         actor_location = CarlaDataProvider.get_location(self._actor)
@@ -1174,6 +1178,44 @@ class ChangeActorWaypoints(AtomicBehavior):
         
             # give new speed to road user controller
             actor.update_target_speed(target_speed)
+
+    def _apply_rts_state(self, actor, transform, velocity_vector, target_speed):
+        """
+        Apply an RtS pose and velocity through the actor-specific CARLA API.
+
+        Walker trajectory transforms use the actor origin, whereas
+        ApplyWalkerState expects a foot/navmesh position and adds half the capsule
+        height. Convert the recorded actor-origin transform to that foot position
+        before applying the walker state. Vehicles accept separate transform and
+        target-velocity updates. The regular actor controller remains suspended
+        while RtS is active.
+        """
+        applied_speed = target_speed
+
+        if isinstance(self._actor, carla.Walker):
+            client = CarlaDataProvider.get_client()
+            if client is None:
+                raise RuntimeError("CARLA client is not available for RtS walker state")
+
+            applied_speed = math.hypot(velocity_vector.x, velocity_vector.y)
+            walker_transform = carla.Transform(
+                carla.Location(
+                    x=transform.location.x,
+                    y=transform.location.y,
+                    z=(transform.location.z
+                       - self._actor.bounding_box.extent.z
+                       + 0.2)),
+                transform.rotation)
+
+            client.apply_batch_sync([
+                carla.command.ApplyWalkerState(
+                    self._actor, walker_transform, applied_speed)
+            ], False)
+        else:
+            self._actor.set_transform(transform)
+            self._actor.set_target_velocity(velocity_vector)
+
+        actor.update_target_speed(applied_speed)
             
     def _update_speed_arts(self, actor, current_waypoint_idx, current_relative_time, lookahead=10):
         from enum import IntEnum
