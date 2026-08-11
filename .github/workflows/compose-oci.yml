@@ -12,3 +12,5 @@ jobs:
   compose-oci:
     uses: openads-project/openads-dev-environment/.github/workflows/compose-oci.yml@main
     secrets: inherit
+    with:
+      compose-folder: docker/compose

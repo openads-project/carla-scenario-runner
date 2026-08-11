@@ -1,7 +1,7 @@
 services:
 
   carla-scenario-runner-ros:
-    image: ghcr.io/openads-project/carla-scenario-runner/ros:v0.10.0-1.0.0
+    image: ghcr.io/openads-project/carla-scenario-runner/ros:v0.10.0-1.1.0
     environment:
       # --- name ------
       CARLA_HOST: carla-simulator

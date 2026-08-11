@@ -18,7 +18,7 @@ mv carla-ros-bridge/ros_compatibility "$WORKSPACE/src/target"
 rm -rf carla-ros-bridge
 
 export SCENARIO_RUNNER_ROOT=/docker-ros/additional-files
-export CARLA_ARTIFACTS_URL="https://github.com/openads-project/carla-simulator/releases/download/v0.10.0-1.0.0/PythonAPI.tar.gz"
+export CARLA_ARTIFACTS_URL="https://github.com/openads-project/carla-simulator/releases/download/v0.10.0-1.1.0/PythonAPI.tar.gz"
 
 # docker-ros copies ADDITIONAL_FILES_DIR entries with Docker ADD. With './*',
 # the srunner directory contents land directly in additional-files.
