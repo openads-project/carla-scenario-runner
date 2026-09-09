@@ -14,5 +14,5 @@ services:
         ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner_with_selection.launch.py \
           host:=$$CARLA_HOST \
           port:=$$CARLA_PORT \
-          scenario_dir:=$$SCENARIO_DIRECTORY \
+          scenarios_dir:=$$SCENARIO_DIRECTORY \
           scenario_runner_path:=$$SCENARIO_RUNNER_ROOT
