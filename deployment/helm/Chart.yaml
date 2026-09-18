@@ -1,7 +1,7 @@
 apiVersion: v2
 name: carla-scenario-runner-ros
-version: 0.10.0-1.1.0
-appVersion: 0.10.0-1.1.0
+version: 0.10.0-1.1.1
+appVersion: 0.10.0-1.1.1
 description: OpenSCENARIO execution for scenario-based testing and evaluation in CARLA
 dependencies:
   - repository: oci://ghcr.io/openads-project/openads-helm
