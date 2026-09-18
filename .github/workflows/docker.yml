@@ -51,4 +51,4 @@ jobs:
           no-cache: true
           context: carla-scenario-runner
           build-args: |
-            ARTIFACTS_URL=https://github.com/openads-project/carla-simulator/releases/download/v0.10.0-1.1.0/PythonAPI.tar.gz
+            ARTIFACTS_URL=https://github.com/openads-project/carla-simulator/releases/download/v0.10.0-1.1.1/PythonAPI.tar.gz
