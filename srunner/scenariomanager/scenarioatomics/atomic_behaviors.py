@@ -980,20 +980,10 @@ class ChangeActorWaypoints(AtomicBehavior):
                     route.append(element[0])
                     continue
                 for wp_tuple in interpolated_trace:
-                    # The router sometimes produces points that go backward, or are almost identical
+                    # The router sometimes produces points that are almost identical
                     # We have to filter these, to avoid problems
                     if route and wp_tuple[0].transform.location.distance(route[-1].location) > 1.0:
-                        new_heading_vec = wp_tuple[0].transform.location - route[-1].location
-                        new_heading = np.arctan2(new_heading_vec.y, new_heading_vec.x)
-                        if len(route) > 1:
-                            last_heading_vec = route[-1].location - route[-2].location
-                        else:
-                            last_heading_vec = route[-1].location - ego_next_wp.transform.location
-                        last_heading = np.arctan2(last_heading_vec.y, last_heading_vec.x)
-
-                        heading_delta = math.fabs(new_heading - last_heading)
-                        if math.fabs(heading_delta) < 0.5 or math.fabs(heading_delta) > 5.5:
-                            route.append(wp_tuple[0].transform)
+                        route.append(wp_tuple[0].transform)
                     elif not route:
                         route.append(wp_tuple[0].transform)
 
