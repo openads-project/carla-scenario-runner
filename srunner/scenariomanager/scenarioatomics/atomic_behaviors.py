@@ -991,7 +991,9 @@ class ChangeActorWaypoints(AtomicBehavior):
             route, times=self._times, start_time=self._start_time)
         control_instance = actor_dict[self._actor.id].control_instance
         if carla_route_elements and hasattr(control_instance, "update_route_goals"):
-            control_instance.update_route_goals([element[0] for element in carla_route_elements])
+            # trajectories (with times) only send their destination, routes also their intermediate waypoints
+            route_goal_elements = carla_route_elements if self._times is None else carla_route_elements[-1:]
+            control_instance.update_route_goals([element[0] for element in route_goal_elements])
 
         super().initialise()
 
