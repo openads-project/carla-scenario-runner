@@ -116,9 +116,12 @@ class RosVehicleControlRouteAction(BasicControl):
         self._route_action_time = None
         return super().update_waypoints(waypoints, start_time)
 
-    def update_final_route_goal(self, waypoint):
-        """Set the exact OpenSCENARIO endpoint independently of the planned route."""
-        self.node.set_goal_pose([waypoint])
+    def update_route_goals(self, waypoints):
+        """Set the exact OpenSCENARIO route points independently of the planned route.
+
+        The last waypoint is the destination, all others are intermediate destinations.
+        """
+        self.node.set_goal_pose(waypoints[-1:], intermediate_waypoints=waypoints[:-1])
 
     def check_reached_waypoint_goal(self):
         return self.node.reached_goal
@@ -149,6 +152,7 @@ class NavigationClient(Node):
         super().__init__('ros_route_agent')
 
         self.goal_pose = None
+        self.intermediate_points = []
         self.reached_goal = False
         self.stack_ready = False
         self.route_triggered_flag = False
@@ -176,20 +180,25 @@ class NavigationClient(Node):
             self.stack_ready = True
             self.get_logger().info("Received first trajectory, stack ready")
 
-    def set_goal_pose(self, waypoints):
-        """Set the goal pose from waypoints"""
-        self.goal_pose = PointStamped()
-        self.goal_pose.header.frame_id = "carla_map"
-        self.goal_pose.header.stamp = Time(sec=0, nanosec=0)
-
-        self.goal_pose.point = Point(
-            x=waypoints[-1].location.x,
-            y=-waypoints[-1].location.y,
-            z=0.0
-        )
+    def set_goal_pose(self, waypoints, intermediate_waypoints=()):
+        """Set the goal pose from waypoints and the optional intermediate destinations"""
+        self.goal_pose = self._to_point_stamped(waypoints[-1])
+        self.intermediate_points = [self._to_point_stamped(waypoint) for waypoint in intermediate_waypoints]
         # Ensure a new goal can trigger the action again
         self.route_triggered_flag = False
         self.reached_goal = False
+
+    @staticmethod
+    def _to_point_stamped(waypoint):
+        point = PointStamped()
+        point.header.frame_id = "carla_map"
+        point.header.stamp = Time(sec=0, nanosec=0)
+        point.point = Point(
+            x=waypoint.location.x,
+            y=-waypoint.location.y,
+            z=0.0
+        )
+        return point
 
     def call_route_action(self):
         """Send the goal_pose to the action server"""
@@ -197,10 +206,14 @@ class NavigationClient(Node):
             self.get_logger().info("Route action already triggered, skipping")
             return
 
-        self.get_logger().info(f"Sending goal destination ({self.goal_pose.point.x}, {self.goal_pose.point.y})")
+        self.get_logger().info(
+            f"Sending goal destination ({self.goal_pose.point.x}, {self.goal_pose.point.y}) "
+            f"via {[(point.point.x, point.point.y) for point in self.intermediate_points]}"
+        )
 
         goal_msg = PlanRoute.Goal()
         goal_msg.destination = self.goal_pose
+        goal_msg.intermediate_destinations = self.intermediate_points
 
         send_goal_future = self.route_action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
         send_goal_future.add_done_callback(self.action_response_callback)
