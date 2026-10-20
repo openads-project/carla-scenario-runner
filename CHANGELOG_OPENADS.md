@@ -18,6 +18,8 @@
 - Added new RTS and ARTS controller options and examples.
 - Added new ROS 2 route controller using derived route goals from OpenSCENARIO definitions.
 - Improved data-provider checks for scenario state, route completion, and route-action result callbacks.
+- Sent intermediate route waypoints to the ROS 2 route planning module for RouteActions; trajectories still send only their destination.
+- Removed the heading check when filtering interpolated route waypoints, so routes with sharp turns are no longer truncated.
 
 ## Build, CI and runtime environment
 
@@ -26,6 +28,8 @@
 - Added `scenario_runner_server.py`, a Flask-based HTTP wrapper for triggering `scenario_runner.py` from other containers and returning execution output.
 - Fixed autopilot class naming to use `carla_autopilot`.
 - Updated vehicle defaults for UE5.
+- Updated `perception_interfaces` and `planning_interfaces` to v1.2.0.
+- Updated the openadservice Helm chart dependency to 1.2.0.
 
 ## Visualization and defaults
 
