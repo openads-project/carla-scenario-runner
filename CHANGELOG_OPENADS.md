@@ -16,6 +16,7 @@
 - Added `approaching_control.py` for waypoint following with TTC/THW-based braking behavior, including intersection handling.
 - Improved `npc_vehicle_control.py` and `FollowTrajectoryAction` speed handling.
 - Added new RTS and ARTS controller options and examples.
+- Fixed RTS replay spinning actors for one or two ticks when a trajectory's heading crosses ±180°; angles are now interpolated using the smallest angle difference.
 - Added new ROS 2 route controller using derived route goals from OpenSCENARIO definitions.
 - Improved data-provider checks for scenario state, route completion, and route-action result callbacks.
 - Sent intermediate route waypoints to the ROS 2 route planning module for RouteActions; trajectories still send only their destination.
