@@ -1102,14 +1102,20 @@ class ChangeActorWaypoints(AtomicBehavior):
                 def interpolate(before, after):
                     return before + (after - before) * scale
 
+                def interpolate_angle(before, after):
+                    # Use the smallest angle difference, so that headings crossing +-180 deg
+                    # do not spin the actor: from -179 deg to 179 deg is -2 deg, not +358 deg.
+                    delta = (after - before + 180.0) % 360.0 - 180.0
+                    return before + delta * scale
+
                 interpolated_location = carla.Location(
                     x=interpolate(prior_location.x, target_location.x),
                     y=interpolate(prior_location.y, target_location.y),
                     z=interpolate(prior_location.z, target_location.z))
                 interpolated_rotation = carla.Rotation(
-                    pitch=interpolate(prior_transform.rotation.pitch, target_transform.rotation.pitch),
-                    yaw=interpolate(prior_transform.rotation.yaw, target_transform.rotation.yaw),
-                    roll=interpolate(prior_transform.rotation.roll, target_transform.rotation.roll))
+                    pitch=interpolate_angle(prior_transform.rotation.pitch, target_transform.rotation.pitch),
+                    yaw=interpolate_angle(prior_transform.rotation.yaw, target_transform.rotation.yaw),
+                    roll=interpolate_angle(prior_transform.rotation.roll, target_transform.rotation.roll))
                 interpolated_transform = carla.Transform(interpolated_location, interpolated_rotation)
                 velocity_vector = carla.Vector3D(
                     (target_location.x - prior_location.x) / segment_time,
