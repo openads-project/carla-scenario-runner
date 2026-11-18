@@ -348,11 +348,12 @@ class OpenScenario(BasicScenario):
                                                                       name="AssignRouteAction")
                                     elif private_action.find('FollowTrajectoryAction') is not None:
                                         trajectory_action = private_action.find('FollowTrajectoryAction')
-                                        waypoints, times = OpenScenarioParser.get_trajectory(trajectory_action,
-                                                                                             self.config.catalogs)
+                                        waypoints, times, parameters = OpenScenarioParser.get_trajectory(
+                                            trajectory_action, self.config.catalogs, self.config.version)
                                         atomic = ChangeActorWaypoints(carla_actor, waypoints=list(
                                             zip(waypoints, ['shortest'] * len(waypoints))),
-                                                                      times=times, name="FollowTrajectoryAction")
+                                                                      times=times, name="FollowTrajectoryAction",
+                                                                      additional_parameters=parameters)
                                     elif private_action.find('AcquirePositionAction') is not None:
                                         route_action = private_action.find('AcquirePositionAction')
                                         osc_position = route_action.find('Position')
