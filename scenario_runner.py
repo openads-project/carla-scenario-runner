@@ -96,6 +96,9 @@ class ScenarioRunner(object):
 
     finished = False
 
+    # OpenADS: sensors that existed before the scenario started belong to other clients
+    preexisting_sensor_ids = set()
+
     additional_scenario_module = None
 
     agent_instance = None
@@ -209,13 +212,23 @@ class ScenarioRunner(object):
         # Make sure no sensors are left streaming. Actors are destroyed by whoever
         # created them, but a leaked sensor would keep feeding an agent that is gone.
         # Before the egos go, or their sensors are already gone with them and this fails.
+        # OpenADS: only sensors of this scenario, so that the sensors of an ego vehicle spawned by
+        # another client (waitForEgo) and of background traffic survive for the next scenario.
         if self.world is not None:
             try:
+                own_actor_ids = {actor.id for actor in self.ego_vehicles if actor is not None}
+                if self.manager and self.manager.other_actors:
+                    own_actor_ids |= {actor.id for actor in self.manager.other_actors if actor is not None}
                 for sensor in self.world.get_actors().filter('*sensor*'):
+                    if sensor.id in self.preexisting_sensor_ids:
+                        continue
+                    if sensor.parent is not None and sensor.parent.id not in own_actor_ids:
+                        continue
                     sensor.stop()
                     sensor.destroy()
             except RuntimeError:
                 pass
+        self.preexisting_sensor_ids = set()
 
         if self.manager:
             self.manager.cleanup()
@@ -440,6 +453,7 @@ class ScenarioRunner(object):
         print("Preparing scenario: " + config.name, flush=True)
         try:
             self._prepare_ego_vehicles(config.ego_vehicles)
+            self.preexisting_sensor_ids = {sensor.id for sensor in self.world.get_actors().filter('*sensor*')}
             if self._args.openscenarios:
                 scenario = OpenScenario(ego_vehicles=self.ego_vehicles,
                                         config=config,
