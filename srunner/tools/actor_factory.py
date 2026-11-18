@@ -14,6 +14,23 @@ import carla
 
 from srunner.scenariomanager.simulation_data import SimulationData
 
+# OpenADS: default blueprint per actor category for models missing from the blueprint library.
+# An empty entry falls back to any vehicle.
+ACTOR_BLUEPRINT_CATEGORIES = {
+    'car': 'vehicle.dodge.charger',
+    'van': 'vehicle.sprinter.mercedes',
+    'truck': 'vehicle.carlacola.actors',
+    'trailer': '',
+    'semitrailer': '',
+    'bus': 'vehicle.fuso.mitsubishi',
+    'motorbike': 'vehicle.kawasaki.ninja',
+    'bicycle': 'vehicle.diamondback.century',
+    'train': '',
+    'tram': '',
+    'pedestrian': 'walker.pedestrian.0027',
+    'misc': 'static.prop.streetbarrier'
+}
+
 # Legacy (0.9.x) blueprint id -> its CARLA UE5 equivalent. Two-wheelers keep
 # their original ids, so they need no entry.
 
@@ -129,18 +146,29 @@ def create_blueprint(model, rolename='scenario', color=None, actor_category="car
         return False
 
     rng = SimulationData.get_rng()
+    blueprint_library = SimulationData.get_world().get_blueprint_library()
 
     # Set the model
     try:
         model = resolve_model_name(model)
-        blueprints = SimulationData.get_world().get_blueprint_library().filter(model)
+        blueprints = blueprint_library.filter(model)
         if attribute_filter is not None:
             for key, value in attribute_filter.items():
                 blueprints = [x for x in blueprints if check_attribute_value(x, key, value)]
 
         blueprint = rng.choice(blueprints)
     except ValueError:
-        raise ValueError("Actor model {} not available".format(model))
+        # OpenADS: the model is not part of the blueprint library, e.g. a generic vehicle name of an
+        # exported OpenSCENARIO file. Take a default one for the given category, as before CARLA 1.0.
+        bp_filter = "vehicle.*"
+        new_model = ACTOR_BLUEPRINT_CATEGORIES.get(actor_category, '')
+        if new_model != '':
+            bp_filter = new_model
+        print("WARNING: Actor model {} not available. Using instead {}".format(model, new_model or bp_filter))
+        blueprints = blueprint_library.filter(bp_filter)
+        if not blueprints:
+            raise ValueError("Actor model {} not available".format(model))
+        blueprint = rng.choice(blueprints)
 
     # Set the color
     if color:
