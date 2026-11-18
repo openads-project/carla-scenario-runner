@@ -703,18 +703,32 @@ def main():
         parser.print_help(sys.stdout)
         return 1
 
-    if arguments.route and (arguments.openscenario or arguments.scenario):
+    # OpenADS: all OpenSCENARIO 1.x files of this run, from a single file or a folder; empty in the other modes
+    arguments.openscenarios = []
+    if arguments.openscenarioDirectory:
+        arguments.openscenarios = sorted(
+            os.path.join(arguments.openscenarioDirectory, filename)
+            for filename in os.listdir(arguments.openscenarioDirectory)
+            if filename.endswith(".xosc"))
+        if not arguments.openscenarios:
+            print("No openscenario-files in directory:")
+            print(arguments.openscenarioDirectory)
+            return 1
+    elif arguments.openscenario:
+        arguments.openscenarios = [arguments.openscenario]
+
+    if arguments.route and (arguments.openscenarios or arguments.scenario):
         print("The route mode cannot be used together with a scenario (incl. OpenSCENARIO)'\n\n")
         parser.print_help(sys.stdout)
         return 1
 
-    if arguments.agent and (arguments.openscenario or arguments.scenario):
+    if arguments.agent and (arguments.openscenarios or arguments.scenario):
         print("Agents are currently only compatible with route scenarios'\n\n")
         parser.print_help(sys.stdout)
         return 1
 
-    if arguments.openscenarioparams and not arguments.openscenario:
-        print("WARN: Ignoring --openscenarioparams when --openscenario is not specified")
+    if arguments.openscenarioparams and not arguments.openscenarios:
+        print("WARN: Ignoring --openscenarioparams when neither --openscenario nor --openscenarioDirectory is specified")
 
     if arguments.route:
         arguments.reloadWorld = True
@@ -722,25 +736,6 @@ def main():
     if arguments.agent:
         arguments.sync = True
 
-    if arguments.openscenario:
-        arguments.openscenarios = [arguments.openscenario]
-
-    if arguments.openscenarioDirectory:
-        # if arguments.openscenario:
-        #     print("WARN: Ignoring --openscenario when --openscenarioDirectory is specified")
-        arguments.openscenarios = []
-        directory = os.fsencode(arguments.openscenarioDirectory)
-    
-        for file in os.listdir(directory):
-            filename = os.fsdecode(file)
-            if filename.endswith(".xosc"): 
-                arguments.openscenarios.append(os.path.join(arguments.openscenarioDirectory, filename))
-
-        if not arguments.openscenarios:
-            print("No openscenario-files in directory:")
-            print(arguments.openscenarioDirectory)
-            return 1
-    
     scenario_runner = None
     result = True
     try:
