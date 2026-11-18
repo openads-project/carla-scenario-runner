@@ -26,9 +26,10 @@ from srunner.scenarioconfigs.scenario_configuration import ScenarioConfiguration
 # '''
 
 # pylint: enable=line-too-long
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 # OSC2
 from srunner.tools.osc2_helper import OSC2Helper
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.map_utils import resolve_map_name
 
 vehicle_type = ["Car", "Model3", "Mkz2017", "Carlacola", "Rubicon"]
 
@@ -45,7 +46,7 @@ def flat_list(list_of_lists):
 
 class OSC2ScenarioConfiguration(ScenarioConfiguration):
     def __init__(self, filename, client):
-        super(OSC2ScenarioConfiguration, self).__init__()
+        super().__init__()
 
         self.name = self.filename = filename
         self.ast_tree = OSC2Helper.gen_osc2_ast(self.filename)
@@ -417,16 +418,14 @@ class OSC2ScenarioConfiguration(ScenarioConfiguration):
         if world:
             world.get_settings()
             wmap = world.get_map()
+        self.town = resolve_map_name(self.client, self.town)
         if world is None or (
             wmap is not None and wmap.name.split("/")[-1] != self.town
         ):
             self.client.load_world(self.town)
             world = self.client.get_world()
 
-            CarlaDataProvider.set_world(world)
-            if CarlaDataProvider.is_sync_mode():
-                world.tick()
-            else:
-                world.wait_for_tick()
+            SimulationData.prepare_world(world)
+            SimulationData.tick_world()
         else:
-            CarlaDataProvider.set_world(world)
+            SimulationData.prepare_world(world)

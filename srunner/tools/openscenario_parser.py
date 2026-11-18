@@ -9,8 +9,6 @@
 This module provides a parser for scenario configuration files based on OpenSCENARIO
 """
 
-from __future__ import print_function
-
 from srunner.tools.util import strtobool
 import re
 import copy
@@ -19,9 +17,9 @@ import math
 import operator
 
 import py_trees
+import py_trees.decorators
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.weather_sim import Weather
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLightStateSetter,
                                                                       ActorDestroy,
@@ -43,21 +41,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLig
                                                                       TrafficLightControllerSetter)
 # pylint: disable=unused-import
 # For the following includes the pylint check is disabled, as these are accessed via globals()
-from srunner.scenariomanager.scenarioatomics.atomic_criteria import (CollisionTest,
-                                                                     MaxVelocityTest,
-                                                                     DrivenDistanceTest,
-                                                                     AverageVelocityTest,
-                                                                     KeepLaneTest,
-                                                                     ReachedRegionTest,
-                                                                     OnSidewalkTest,
-                                                                     WrongLaneTest,
-                                                                     InRadiusRegionTest,
-                                                                     InRouteTest,
-                                                                     RouteCompletionTest,
-                                                                     RunningRedLightTest,
-                                                                     RunningStopTest,
-                                                                     OffRoadTest,
-                                                                     EndofRoadTest)
+from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, OffRoadTest, EndofRoadTest
 # pylint: enable=unused-import
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (InTriggerDistanceToVehicle,
                                                                                InTriggerDistanceToOSCPosition,
@@ -76,6 +60,8 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
 from srunner.scenariomanager.timer import TimeOut, SimulationTimeCondition
 from srunner.tools.py_trees_port import oneshot_behavior
 from srunner.tools.scenario_helper import get_offset_transform, get_troad_from_transform
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.osc_globals import get_osc_global_param_value, update_osc_global_params
 
 
 def oneshot_with_check(variable_name, behaviour, name=None):
@@ -134,7 +120,7 @@ class ParameterRef:
         if self.is_literal():
             value = self.reference_text
         elif self.is_parameter():
-            value = CarlaDataProvider.get_osc_global_param_value(self.reference_text)
+            value = get_osc_global_param_value(self.reference_text)
             if value is None:
                 raise ValueError("Parameter '{}' is not defined".format(self.reference_text[1:]))
         else:
@@ -272,7 +258,7 @@ class OpenScenarioParser(object):
         # Given by id
         if name.startswith("id="):
             tl_id = int(name[3:])
-            for carla_tl in CarlaDataProvider.get_all_actors().filter('traffic.traffic_light'):
+            for carla_tl in SimulationData.get_world().get_actors().filter('traffic.traffic_light'):
                 if carla_tl.id == tl_id:
                     traffic_light = carla_tl
                     break
@@ -280,7 +266,7 @@ class OpenScenarioParser(object):
         elif name.startswith("pos="):
             tl_pos = name[4:]
             pos = tl_pos.split(",")
-            for carla_tl in CarlaDataProvider.get_all_actors().filter('traffic.traffic_light'):
+            for carla_tl in SimulationData.get_world().get_actors().filter('traffic.traffic_light'):
                 carla_tl_location = carla_tl.get_transform().location
                 distance = carla_tl_location.distance(carla.Location(float(pos[0]),
                                                                      float(pos[1]),
@@ -358,7 +344,7 @@ class OpenScenarioParser(object):
             parameter_dict (Dictionary): Input for global_osc_parameter
         """
         OpenScenarioParser.global_osc_parameters = parameter_dict
-        CarlaDataProvider.update_osc_global_params(parameter_dict)
+        update_osc_global_params(parameter_dict)
 
     @staticmethod
     def get_catalog_entry(catalogs, catalog_reference):
@@ -699,7 +685,7 @@ class OpenScenarioParser(object):
                         obj_actor = actor
                         actor_transform = actor.transform
             else:
-                for actor in CarlaDataProvider.get_all_actors():
+                for actor in SimulationData.get_world().get_actors():
                     if 'role_name' in actor.attributes and actor.attributes['role_name'] == obj:
                         obj_actor = actor
                         actor_transform = obj_actor.get_transform()
@@ -759,12 +745,12 @@ class OpenScenarioParser(object):
                 ds = float(ParameterRef(rel_pos.attrib.get('ds')))
                 offset = float(ParameterRef(rel_pos.attrib.get('offset', 0.0)))
 
-                carla_map = CarlaDataProvider.get_map()
+                carla_map = SimulationData.get_map()
                 relative_waypoint = carla_map.get_waypoint(actor_transform.location)
 
                 road_id, ref_lane_id, ref_s = relative_waypoint.road_id, relative_waypoint.lane_id, relative_waypoint.s
                 target_lane_id = int(ref_lane_id + dlane)
-                waypoint = CarlaDataProvider.get_map().get_waypoint_xodr(road_id, target_lane_id, ref_s)
+                waypoint = SimulationData.get_map().get_waypoint_xodr(road_id, target_lane_id, ref_s)
                 if waypoint is not None:
                     if ds < 0:
                         ds = (-1.0) * ds
@@ -798,12 +784,12 @@ class OpenScenarioParser(object):
                 dt = float(ParameterRef(rel_pos.attrib.get('dt', 0.0)))
                 troad = get_troad_from_transform
 
-                carla_map = CarlaDataProvider.get_map()
+                carla_map = SimulationData.get_map()
                 relative_waypoint = carla_map.get_waypoint(actor_transform.location)
 
                 road_id, ref_lane_id, ref_s = relative_waypoint.road_id, relative_waypoint.lane_id, relative_waypoint.s
                 target_t, target_s = troad(relative_waypoint.transform) - troad(actor_transform) + dt, ref_s + ds
-                waypoint = CarlaDataProvider.get_map().get_waypoint_xodr(road_id, ref_lane_id, target_s)
+                waypoint = SimulationData.get_map().get_waypoint_xodr(road_id, ref_lane_id, target_s)
                 if waypoint is None:
                     raise AttributeError("RelativeRoadPosition 'roadId={} with s={} and t={}' does not exist".format(
                         road_id, target_s, target_t))
@@ -822,7 +808,7 @@ class OpenScenarioParser(object):
             t = float(ParameterRef(road_pos.attrib.get('t', 0)))
             s = float(ParameterRef(road_pos.attrib.get('s', 0)))
 
-            waypoint = CarlaDataProvider.get_map().get_waypoint_xodr(road_id, 0, s)
+            waypoint = SimulationData.get_map().get_waypoint_xodr(road_id, 0, s)
             if waypoint is None:
                 raise AttributeError("RoadPosition 'roadId={} with s={} and t={}' does not exist".format(road_id, s, t))
 
@@ -853,7 +839,7 @@ class OpenScenarioParser(object):
             lane_id = int(ParameterRef(lane_pos.attrib.get('laneId', 0)))
             offset = float(ParameterRef(lane_pos.attrib.get('offset', 0)))
             s = float(ParameterRef(lane_pos.attrib.get('s', 0)))
-            waypoint = CarlaDataProvider.get_map().get_waypoint_xodr(road_id, lane_id, s)
+            waypoint = SimulationData.get_map().get_waypoint_xodr(road_id, lane_id, s)
             if waypoint is None:
                 raise AttributeError("LanePosition 'roadId={}, laneId={}, s={}, offset={}' does not exist".format(
                     road_id, lane_id, s, offset))
@@ -919,9 +905,10 @@ class OpenScenarioParser(object):
                 if entity_condition.find('EndOfRoadCondition') is not None:
                     end_road_condition = entity_condition.find('EndOfRoadCondition')
                     condition_duration = ParameterRef(end_road_condition.attrib.get('duration'))
-                    atomic_cls = py_trees.meta.inverter(EndofRoadTest)
-                    atomic = atomic_cls(trigger_actor, condition_duration, terminate_on_failure=True,
-                                        name=condition_name)
+                    atomic = py_trees.decorators.Inverter(
+                        name=condition_name,
+                        child=EndofRoadTest(trigger_actor, condition_duration, terminate_on_failure=True,
+                                            name=condition_name))
                 elif entity_condition.find('CollisionCondition') is not None:
                     collision_condition = entity_condition.find('CollisionCondition')
 
@@ -937,29 +924,33 @@ class OpenScenarioParser(object):
                             raise AttributeError("Cannot find actor '{}' for condition".format(
                                 collision_condition.attrib.get('entityRef', None)))
 
-                        atomic_cls = py_trees.meta.inverter(CollisionTest)
-                        atomic = atomic_cls(trigger_actor, other_actor=triggered_actor, terminate_on_failure=True,
-                                            name=condition_name)
+                        atomic = py_trees.decorators.Inverter(
+                            name=condition_name,
+                            child=CollisionTest(trigger_actor, other_actor=triggered_actor,
+                                                terminate_on_failure=True, name=condition_name))
 
                     elif collision_condition.find('ByType') is not None:
                         collision_type = collision_condition.find('ByType').attrib.get('type', None)
 
                         triggered_type = OpenScenarioParser.actor_types[collision_type]
 
-                        atomic_cls = py_trees.meta.inverter(CollisionTest)
-                        atomic = atomic_cls(trigger_actor, other_actor_type=triggered_type, terminate_on_failure=True,
-                                            name=condition_name)
+                        atomic = py_trees.decorators.Inverter(
+                            name=condition_name,
+                            child=CollisionTest(trigger_actor, other_actor_type=triggered_type,
+                                                terminate_on_failure=True, name=condition_name))
 
                     else:
-                        atomic_cls = py_trees.meta.inverter(CollisionTest)
-                        atomic = atomic_cls(trigger_actor, terminate_on_failure=True, name=condition_name)
+                        atomic = py_trees.decorators.Inverter(
+                            name=condition_name,
+                            child=CollisionTest(trigger_actor, terminate_on_failure=True, name=condition_name))
 
                 elif entity_condition.find('OffroadCondition') is not None:
                     off_condition = entity_condition.find('OffroadCondition')
                     condition_duration = ParameterRef(off_condition.attrib.get('duration'))
-                    atomic_cls = py_trees.meta.inverter(OffRoadTest)
-                    atomic = atomic_cls(trigger_actor, condition_duration, terminate_on_failure=True,
-                                        name=condition_name)
+                    atomic = py_trees.decorators.Inverter(
+                        name=condition_name,
+                        child=OffRoadTest(trigger_actor, condition_duration, terminate_on_failure=True,
+                                          name=condition_name))
                 elif entity_condition.find('TimeHeadwayCondition') is not None:
                     headtime_condition = entity_condition.find('TimeHeadwayCondition')
 
@@ -1136,7 +1127,7 @@ class OpenScenarioParser(object):
                         raise AttributeError(
                             "The condition {} cannot be mapped to a criterion atomic".format(class_name))
 
-                    atomic = py_trees.composites.Parallel("Evaluation Criteria for multiple ego vehicles")
+                    atomic = py_trees.composites.Parallel("Evaluation Criteria for multiple ego vehicles", policy=py_trees.common.ParallelPolicy.SuccessOnAll())
                     for triggered_actor in actor_list:
                         if arg_name != '':
                             atomic.add_child(criterion_instance(triggered_actor, arg_value))
@@ -1207,7 +1198,7 @@ class OpenScenarioParser(object):
             raise AttributeError("Unknown condition")
 
         if delay_atomic is not None and atomic is not None:
-            new_atomic = py_trees.composites.Sequence("delayed sequence")
+            new_atomic = py_trees.composites.Sequence("delayed sequence", memory=True)
             new_atomic.add_child(delay_atomic)
             new_atomic.add_child(atomic)
         else:
@@ -1271,7 +1262,7 @@ class OpenScenarioParser(object):
                     OpenScenarioParser.get_friction_from_env_action(global_action, catalogs))
 
                 env_behavior = py_trees.composites.Parallel(
-                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name=maneuver_name)
+                    policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name=maneuver_name)
 
                 env_behavior.add_child(
                     oneshot_with_check(variable_name=maneuver_name + ">WeatherUpdate", behaviour=weather_behavior))

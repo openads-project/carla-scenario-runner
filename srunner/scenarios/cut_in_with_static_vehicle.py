@@ -6,14 +6,11 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
 from agents.navigation.local_planner import RoadOption
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
                                                                       BatchActorTransformSetter,
                                                                       CutIn,
@@ -24,13 +21,8 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
                                                                                InTimeToArrivalToLocation)
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.background_manager import RemoveRoadLane, LeaveSpaceInFront, ReAddRoadLane, ChangeRoadBehavior
-
-
-def get_value_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return p_type(config.other_parameters[name]['value'])
-    else:
-        return default
+from srunner.tools.scenario_helper import get_value_parameter
+from srunner.tools.actor_factory import request_new_actor
 
 
 class StaticCutIn(BasicScenario):
@@ -42,7 +34,6 @@ class StaticCutIn(BasicScenario):
 
     def __init__(
         self,
-        world,
         ego_vehicles,
         config,
         randomize=False,
@@ -53,11 +44,8 @@ class StaticCutIn(BasicScenario):
         """
         Setup all relevant parameters and create scenario
         """
-        self._wmap = CarlaDataProvider.get_map()
         self.timeout = timeout
 
-        self._trigger_location = config.trigger_points[0].location
-        self._reference_waypoint = self._wmap.get_waypoint(self._trigger_location)
 
         self._reaction_time = 2.7  # Time the agent has to react to avoid the collision [s]
         self._min_trigger_dist = 15.0  # Min distance to the collision location that triggers the adversary [m]
@@ -85,7 +73,6 @@ class StaticCutIn(BasicScenario):
         super().__init__("StaticCutIn",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -104,17 +91,17 @@ class StaticCutIn(BasicScenario):
             # Move to the side
             side_wp = blocker_wp.get_left_lane() if self._direction == 'left' else blocker_wp.get_right_lane()
             if not side_wp:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't find a proper position for the cut in vehicle")
 
             if i == 1:
                 self._side_wp = side_wp
 
             # Spawn the actor
-            blocker_actor = CarlaDataProvider.request_new_actor(
+            blocker_actor = request_new_actor(
                 'vehicle.*', side_wp.transform, 'scenario', attribute_filter=self._attributes)
             if not blocker_actor:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't spawn an actor")
             blocker_actor.apply_control(carla.VehicleControl(hand_brake=True))
 
@@ -126,7 +113,7 @@ class StaticCutIn(BasicScenario):
             # Move to the front
             next_wps = blocker_wp.next(self._vehicle_gap)
             if not next_wps:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't find a proper position for the cut in vehicle")
             blocker_wp = next_wps[0]
 
@@ -138,7 +125,7 @@ class StaticCutIn(BasicScenario):
         while dist < self._adversary_end_distance:
             next_wps = next_wp.next(step)
             if not next_wps:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't find a proper position for the cut in vehicle")
             next_wp = next_wps[0]
             self._plan.append([next_wp, RoadOption.STRAIGHT])
@@ -148,13 +135,13 @@ class StaticCutIn(BasicScenario):
         # Spawn the cut in vehicle
         side_wp = blocker_wp.get_left_lane() if self._direction == 'left' else blocker_wp.get_right_lane()
         if not side_wp:
-            self._destroy_other_actors()
+            self.remove_all_actors()
             raise ValueError("Couldn't find a proper position for the cut in vehicle")
 
-        self._adversary_actor = CarlaDataProvider.request_new_actor(
+        self._adversary_actor = request_new_actor(
             'vehicle.*', side_wp.transform, 'scenario', attribute_filter=self._attributes)
         if not self._adversary_actor:
-            self._destroy_other_actors()
+            self.remove_all_actors()
             raise ValueError("Couldn't spawn an actor")
 
         self._adversary_actor.set_simulate_physics(False)
@@ -168,7 +155,7 @@ class StaticCutIn(BasicScenario):
         # Move to the front
         next_wps = blocker_wp.next(self._vehicle_gap)
         if not next_wps:
-            self._destroy_other_actors()
+            self.remove_all_actors()
             raise ValueError("Couldn't find a proper position for the cut in vehicle")
         blocker_wp = next_wps[0]
 
@@ -177,14 +164,14 @@ class StaticCutIn(BasicScenario):
             # Move to the side
             side_wp = blocker_wp.get_left_lane() if self._direction == 'left' else blocker_wp.get_right_lane()
             if not side_wp:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't find a proper position for the cut in vehicle")
 
             # Spawn the actor
-            blocker_actor = CarlaDataProvider.request_new_actor(
+            blocker_actor = request_new_actor(
                 'vehicle.*', side_wp.transform, 'scenario', attribute_filter=self._attributes)
             if not blocker_actor:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't spawn an actor")
             blocker_actor.apply_control(carla.VehicleControl(hand_brake=True))
 
@@ -196,7 +183,7 @@ class StaticCutIn(BasicScenario):
             # Move to the front
             next_wps = blocker_wp.next(self._vehicle_gap)
             if not next_wps:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Couldn't find a proper position for the cut in vehicle")
             blocker_wp = next_wps[0]
 
@@ -205,7 +192,7 @@ class StaticCutIn(BasicScenario):
         After invoking this scenario, a parked vehicle will wait for the ego to
         be close-by, merging into its lane, forcing it to break.
         """
-        sequence = py_trees.composites.Sequence(name="StaticCutIn")
+        sequence = py_trees.composites.Sequence(name="StaticCutIn", memory=True)
         if self.route_mode:
             total_dist = self._blocker_distance
             total_dist += self._vehicle_gap * (self._back_vehicles + self._front_vehicles + 1)
@@ -217,7 +204,7 @@ class StaticCutIn(BasicScenario):
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._reaction_time, collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(
@@ -231,10 +218,10 @@ class StaticCutIn(BasicScenario):
             sequence.add_child(RemoveRoadLane(self._side_wp))
 
         cut_in_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="CutIn")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="CutIn")
         cut_in_direction = 'right' if self._direction == 'left' else 'left'
 
-        cut_in_movement = py_trees.composites.Sequence()
+        cut_in_movement = py_trees.composites.Sequence(name="CutInMovement", memory=True)
         cut_in_movement.add_child(CutIn(
             self._adversary_actor, self.ego_vehicles[0], cut_in_direction, change_time=3, other_lane_time=2))
         cut_in_movement.add_child(BasicAgentBehavior(

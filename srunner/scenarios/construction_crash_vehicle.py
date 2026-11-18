@@ -8,13 +8,11 @@ The scenario realizes the user controlled ego vehicle
 moving along the road and encountering a construction setup.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorFlow,
+                                                                      ActorDestroy,
                                                                       ActorTransformSetter,
                                                                       SwitchWrongDirectionTest,
                                                                       ScenarioTimeout,
@@ -29,21 +27,9 @@ from srunner.tools.background_manager import (RemoveRoadLane,
                                               SetMaxSpeed,
                                               ChangeOppositeBehavior)
 
+from srunner.tools.scenario_helper import get_value_parameter, get_interval_parameter, convert_dict_to_location
+from srunner.tools.actor_factory import request_new_actor
 
-def get_value_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return p_type(config.other_parameters[name]['value'])
-    else:
-        return default
-
-def get_interval_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return [
-            p_type(config.other_parameters[name]['from']),
-            p_type(config.other_parameters[name]['to'])
-        ]
-    else:
-        return default
 
 class ConstructionObstacle(BasicScenario):
     """
@@ -55,33 +41,41 @@ class ConstructionObstacle(BasicScenario):
     This is a single ego vehicle scenario
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False,
                  criteria_enable=True, timeout=60):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
 
         self._trigger_distance = 30
         self._opposite_wait_duration = 5
         self._end_distance = 50
 
-        self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
         self._construction_wp = None
 
         self._construction_transforms = []
 
         self._distance = get_value_parameter(config, 'distance', float, 100)
+
+        # A route that places the oncoming traffic itself gets the actor flow behaviour.
+        # Without those two points there is nowhere to run a flow, so the ego is slowed instead
+        self._actor_flow = 'start_actor_flow' in config.other_parameters \
+            and 'end_actor_flow' in config.other_parameters
+        if self._actor_flow:
+            self._start_actor_flow = convert_dict_to_location(config.other_parameters['start_actor_flow'])
+            self._end_actor_flow = convert_dict_to_location(config.other_parameters['end_actor_flow'])
+            self._flow_speed = get_value_parameter(config, 'flow_speed', float, 10)
+            self._source_dist_interval = get_interval_parameter(config, 'source_dist_interval', float, [20, 50])
+
         self._max_speed = get_value_parameter(config, 'speed', float, 60)
         self._scenario_timeout = 240
         self._direction = get_value_parameter(config, 'direction', str, 'right')
         if self._direction not in ('left', 'right'):
             raise ValueError(f"'direction' must be either 'right' or 'left' but {self._direction} was given")
 
-        super().__init__("ConstructionObstacle", ego_vehicles, config, world, debug_mode, False, criteria_enable)
+        super().__init__("ConstructionObstacle", ego_vehicles, config, debug_mode, False, criteria_enable)
 
     def _initialize_actors(self, config):
         """Creates all props part of the construction"""
@@ -126,7 +120,7 @@ class ConstructionObstacle(BasicScenario):
         spawn_transform = wp.transform
         spawn_transform.location += carla.Location(x=displacement * r_vec.x, y=displacement * r_vec.y, z=0.2)
         spawn_transform.rotation.yaw += 90
-        signal_prop = CarlaDataProvider.request_new_actor('static.prop.warningconstruction', spawn_transform)
+        signal_prop = request_new_actor('static.prop.warningconstruction', spawn_transform)
         if not signal_prop:
             raise ValueError("Couldn't spawn the indication prop asset")
         signal_prop.set_simulate_physics(False)
@@ -146,7 +140,7 @@ class ConstructionObstacle(BasicScenario):
             spawn_transform.location.z -= 200
             cone_transform = carla.Transform(location, start_transform.rotation)
 
-            cone = CarlaDataProvider.request_new_actor('static.prop.constructioncone', spawn_transform)
+            cone = request_new_actor('static.prop.constructioncone', spawn_transform)
             cone.set_simulate_physics(False)
             self.other_actors.append(cone)
 
@@ -180,7 +174,7 @@ class ConstructionObstacle(BasicScenario):
 
             spawn_transform = carla.Transform(transform.location, transform.rotation)
             spawn_transform.location.z -= 200
-            static = CarlaDataProvider.request_new_actor(
+            static = request_new_actor(
                 _prop_names[key], spawn_transform)
             static.set_simulate_physics(False)
             self.other_actors.append(static)
@@ -220,18 +214,49 @@ class ConstructionObstacle(BasicScenario):
         Wait until the ego is close to the construction (and a bit more) before changing the side traffic
         Readd the traffic at the end
         """
-        root = py_trees.composites.Sequence(name="ConstructionObstacle")
+        if self._actor_flow:
+            return self._create_actor_flow_behavior()
+        return self._create_slow_down_behavior()
+
+    def _create_actor_flow_behavior(self):
+        """Oncoming traffic runs between the two points the config gives"""
+        source_wp = self._map.get_waypoint(self._start_actor_flow)
+        sink_wp = self._map.get_waypoint(self._end_actor_flow)
+
+        root = py_trees.composites.Sequence(name="ConstructionObstacle", memory=True)
+
+        for actor, transform in self._construction_transforms:
+            root.add_child(ActorTransformSetter(actor, transform, True))
+
+        behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Behavior")
+
+        behavior.add_child(ActorFlow(
+            source_wp, sink_wp, self._source_dist_interval,
+            actor_speed=self._flow_speed, initial_actors=True))
+        behavior.add_child(WaitUntilInFrontPosition(self.ego_vehicles[0], self._end_wp.transform, False))
+
+        root.add_child(behavior)
+
+        for actor in self.other_actors:
+            root.add_child(ActorDestroy(actor))
+
+        return root
+
+    def _create_slow_down_behavior(self):
+        """No flow to run, so the background traffic is slowed and the lane removed instead"""
+        root = py_trees.composites.Sequence(name="ConstructionObstacle", memory=True)
         if self.route_mode:
             root.add_child(RemoveRoadLane(self._reference_waypoint))
 
         for actor, transform in self._construction_transforms:
             root.add_child(ActorTransformSetter(actor, transform, True))
 
-        end_condition = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        end_condition = py_trees.composites.Parallel(
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="EndCondition")
         end_condition.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
         end_condition.add_child(WaitUntilInFrontPosition(self.ego_vehicles[0], self._end_wp.transform, False))
 
-        behavior = py_trees.composites.Sequence()
+        behavior = py_trees.composites.Sequence(name="Behavior", memory=True)
         behavior.add_child(InTriggerDistanceToLocation(
             self.ego_vehicles[0], self._construction_wp.transform.location, self._trigger_distance))
         behavior.add_child(Idle(self._opposite_wait_duration))
@@ -255,6 +280,9 @@ class ConstructionObstacle(BasicScenario):
         A list of all test criteria will be created that is later used
         in parallel behavior tree.
         """
+        if self._actor_flow:
+            return [CollisionTest(self.ego_vehicles[0])]
+
         criteria = [ScenarioTimeoutTest(self.ego_vehicles[0], self.config.name)]
         if not self.route_mode:
             criteria.append(CollisionTest(self.ego_vehicles[0]))
@@ -272,18 +300,10 @@ class ConstructionObstacleTwoWays(ConstructionObstacle):
     Variation of ConstructionObstacle where the ego has to invade the opposite lane
     """
 
-    def __init__(
-        self,
-        world,
-        ego_vehicles,
-        config,
-        randomize=False,
-        debug_mode=False,
-        criteria_enable=True,
-        timeout=60,
-    ):
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False,
+                 criteria_enable=True, timeout=60):
         self._opposite_interval = get_interval_parameter(config, 'frequency', float, [20, 100])
-        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+        super().__init__(ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
 
     def _create_behavior(self):
         """
@@ -295,25 +315,29 @@ class ConstructionObstacleTwoWays(ConstructionObstacle):
         if not reference_wp:
             raise ValueError("Couldnt find a left lane to spawn the opposite traffic")
 
-        root = py_trees.composites.Sequence(name="ConstructionObstacleTwoWays")
+        # The config's own interval when it brings a flow, the background's otherwise
+        interval = self._source_dist_interval if self._actor_flow else self._opposite_interval
+
+        root = py_trees.composites.Sequence(name="ConstructionObstacleTwoWays", memory=True)
         if self.route_mode:
             root.add_child(RemoveRoadLane(self._reference_waypoint))
 
         for actor, transform in self._construction_transforms:
             root.add_child(ActorTransformSetter(actor, transform, True))
 
-        end_condition = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        end_condition = py_trees.composites.Parallel(
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="EndCondition")
         end_condition.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
         end_condition.add_child(WaitUntilInFrontPosition(self.ego_vehicles[0], self._end_wp.transform, False))
 
-        behavior = py_trees.composites.Sequence()
+        behavior = py_trees.composites.Sequence(name="Behavior", memory=True)
         behavior.add_child(InTriggerDistanceToLocation(
             self.ego_vehicles[0], self._construction_wp.transform.location, self._trigger_distance))
         behavior.add_child(Idle(self._opposite_wait_duration))
         if self.route_mode:
             behavior.add_child(SwitchWrongDirectionTest(False))
             behavior.add_child(ChangeOppositeBehavior(active=False))
-            behavior.add_child(OppositeActorFlow(reference_wp, self.ego_vehicles[0], self._opposite_interval))
+            behavior.add_child(OppositeActorFlow(reference_wp, self.ego_vehicles[0], interval))
 
         end_condition.add_child(behavior)
         root.add_child(end_condition)

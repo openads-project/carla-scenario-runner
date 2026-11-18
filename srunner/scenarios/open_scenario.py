@@ -9,14 +9,12 @@
 Basic scenario class using the OpenSCENARIO definition
 """
 
-from __future__ import print_function
-
 from srunner.tools.util import strtobool
 import itertools
 import os
 import py_trees
+import py_trees.decorators
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (
     ChangeWeather,
     ChangeRoadFriction,
@@ -30,7 +28,8 @@ from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.weather_sim import OSCWeatherBehavior
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.openscenario_parser import OpenScenarioParser, oneshot_with_check, ParameterRef
-from srunner.tools.py_trees_port import Decorator
+from srunner.tools.blackboard import get_blackboard_keys
+from srunner.tools.actor_factory import request_new_actors
 
 
 def repeatable_behavior(behaviour, name=None):
@@ -49,7 +48,7 @@ def repeatable_behavior(behaviour, name=None):
         behaviour.add_child(clear_descendant_variables)
         sequence = behaviour
     else:
-        sequence = py_trees.composites.Sequence(name="RepeatableBehaviour of {}".format(name))
+        sequence = py_trees.composites.Sequence(name="RepeatableBehaviour of {}".format(name), memory=True)
         sequence.add_children([behaviour, clear_descendant_variables])
     return sequence
 
@@ -68,20 +67,19 @@ class ClearBlackboardVariablesStartingWith(py_trees.behaviours.Success):
                  name="Clear Blackboard Variable Starting With",
                  variable_name_beginning="dummy",
                  ):
-        super(ClearBlackboardVariablesStartingWith, self).__init__(name)
+        super().__init__(name)
         self.variable_name_beginning = variable_name_beginning
 
     def initialise(self):
         """
         Delete the variables from the blackboard.
         """
-        blackboard_variables = [key for key, _ in py_trees.blackboard.Blackboard().__dict__.items(
-        ) if key.startswith(self.variable_name_beginning)]
-        for variable in blackboard_variables:
-            delattr(py_trees.blackboard.Blackboard(), variable)
+        for variable in get_blackboard_keys():
+            if variable.startswith(self.variable_name_beginning):
+                py_trees.blackboard.Blackboard.unset(variable)
 
 
-class StoryElementStatusToBlackboard(Decorator):
+class StoryElementStatusToBlackboard(py_trees.decorators.Decorator):
 
     """
     Reflect the status of the decorator's child story element to the blackboard.
@@ -93,7 +91,7 @@ class StoryElementStatusToBlackboard(Decorator):
     """
 
     def __init__(self, child, story_element_type, element_name):
-        super(StoryElementStatusToBlackboard, self).__init__(name=child.name, child=child)
+        super().__init__(name=child.name, child=child)
         self.story_element_type = story_element_type
         self.element_name = element_name
         self.blackboard = py_trees.blackboard.Blackboard()
@@ -205,7 +203,7 @@ class OpenScenario(BasicScenario):
     Implementation of the OpenSCENARIO scenario
     """
 
-    def __init__(self, world, ego_vehicles, config, config_file, debug_mode=False, criteria_enable=True, timeout=300):
+    def __init__(self, ego_vehicles, config, config_file, debug_mode=False, criteria_enable=True, timeout=300):
         """
         Setup all relevant parameters and create scenario
         """
@@ -215,16 +213,16 @@ class OpenScenario(BasicScenario):
         # Timeout of scenario in seconds
         self.timeout = timeout
 
-        super(OpenScenario, self).__init__(self.config.name, ego_vehicles=ego_vehicles, config=config,
-                                           world=world, debug_mode=debug_mode,
-                                           terminate_on_failure=False, criteria_enable=criteria_enable)
+        super().__init__(self.config.name, ego_vehicles=ego_vehicles, config=config,
+                         debug_mode=debug_mode, terminate_on_failure=False,
+                         criteria_enable=criteria_enable)
 
     def _initialize_parameters(self):
         """
         Parse ParameterAction from Init and update global osc parameters.
         """
         param_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="ParametersInit")
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="ParametersInit")
         for i, global_action in enumerate(self.config.init.find('Actions').iter('GlobalAction')):
             maneuver_name = 'InitParams'
             if global_action.find('ParameterAction') is not None:
@@ -245,7 +243,7 @@ class OpenScenario(BasicScenario):
 
         return param_behavior
 
-    def _initialize_environment(self, world):
+    def _initialize_environment(self):
         """
         Initialization of weather and road friction.
         """
@@ -255,7 +253,7 @@ class OpenScenario(BasicScenario):
         # Set the appropriate weather conditions
 
         env_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="EnvironmentBehavior")
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="EnvironmentBehavior")
 
         weather_update = ChangeWeather(
             OpenScenarioParser.get_weather_from_env_action(self.config.init, self.config.catalogs))
@@ -269,7 +267,7 @@ class OpenScenario(BasicScenario):
     def _create_init_behavior(self):
 
         init_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="InitBehaviour")
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="InitBehaviour")
 
         actor_list = self.other_actors + self.ego_vehicles + [None]
 
@@ -277,7 +275,7 @@ class OpenScenario(BasicScenario):
             for carla_actor in self.other_actors + self.ego_vehicles:
                 if (carla_actor is not None and 'role_name' in carla_actor.attributes and
                         carla_actor.attributes['role_name'] == actor.rolename):
-                    actor_init_behavior = py_trees.composites.Sequence(name="InitActor{}".format(actor.rolename))
+                    actor_init_behavior = py_trees.composites.Sequence(name="InitActor{}".format(actor.rolename), memory=True)
 
                     controller_atomic = None
                     atomic = None
@@ -330,9 +328,6 @@ class OpenScenario(BasicScenario):
                                         continuous = bool(strtobool(lat_maneuver.attrib.get('continuous', "false")))
                                         freespace = bool(strtobool(lat_maneuver.attrib.get('freespace', "false")))
                                         distance = ParameterRef(lat_maneuver.attrib.get('distance', float("inf")))
-                                        constraints = lat_maneuver.find('DynamicConstraints')
-                                        max_speed = constraints.attrib.get('maxSpeed',
-                                                                           None) if constraints is not None else None
                                         relative_actor = None
                                         relative_actor_name = lat_maneuver.attrib.get('entityRef', None)
                                         for _actor in actor_list:
@@ -387,7 +382,7 @@ class OpenScenario(BasicScenario):
         Basic behavior do nothing, i.e. Idle
         """
 
-        stories_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL,
+        stories_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnAll(),
                                                         name="OSCStories")
         # Story AddEntityAction actors are not spawned yet, but ManeuverGroup
         # actor lookup still needs their role names while building the tree.
@@ -405,24 +400,24 @@ class OpenScenario(BasicScenario):
 
         for story in self.config.stories:
             story_name = story.get("name")
-            story_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL,
+            story_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnAll(),
                                                           name=story_name)
             for act in story.iter("Act"):
 
                 act_sequence = py_trees.composites.Sequence(
-                    name="Act StartConditions and behaviours")
+                    name="Act StartConditions and behaviours", memory=True)
 
                 start_conditions = py_trees.composites.Parallel(
-                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="StartConditions Group")
+                    policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="StartConditions Group")
 
                 parallel_behavior = py_trees.composites.Parallel(
-                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="Maneuver + EndConditions Group")
+                    policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Maneuver + EndConditions Group")
 
                 parallel_sequences = py_trees.composites.Parallel(
-                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Maneuvers")
+                    policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="Maneuvers")
 
                 for sequence in act.iter("ManeuverGroup"):
-                    sequence_behavior = py_trees.composites.Sequence(name=sequence.attrib.get('name'))
+                    sequence_behavior = py_trees.composites.Sequence(name=sequence.attrib.get('name'), memory=True)
                     repetitions = sequence.attrib.get('maximumExecutionCount', 1)
 
                     for _ in range(int(repetitions)):
@@ -450,16 +445,16 @@ class OpenScenario(BasicScenario):
                             catalog_maneuver_list.append(catalog_maneuver)
                         all_maneuvers = itertools.chain(iter(catalog_maneuver_list), sequence.iter("Maneuver"))
                         single_sequence_iteration = py_trees.composites.Parallel(
-                            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name=sequence_behavior.name)
+                            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name=sequence_behavior.name)
                         for maneuver in all_maneuvers:  # Iterates through both CatalogReferences and Maneuvers
                             maneuver_parallel = py_trees.composites.Parallel(
-                                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL,
+                                policy=py_trees.common.ParallelPolicy.SuccessOnAll(),
                                 name="Maneuver " + maneuver.attrib.get('name'))
                             for event in maneuver.iter("Event"):
                                 event_sequence = py_trees.composites.Sequence(
-                                    name="Event " + event.attrib.get('name'))
+                                    name="Event " + event.attrib.get('name'), memory=True)
                                 parallel_actions = py_trees.composites.Parallel(
-                                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Actions")
+                                    policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="Actions")
                                 for child in event.iter():
                                     if child.tag == "Action":
                                         for actor_id in actor_ids:
@@ -544,7 +539,7 @@ class OpenScenario(BasicScenario):
 
         # Build behavior tree
         behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="behavior")
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="behavior")
 
         init_parameters = self._initialize_parameters()
         if init_parameters is not None:
@@ -577,15 +572,15 @@ class OpenScenario(BasicScenario):
         """
 
         parallel_condition_groups = py_trees.composites.Parallel(name,
-                                                                 policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                                 policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         for condition_group in node.iter("ConditionGroup"):
             if success_on_all:
                 condition_group_sequence = py_trees.composites.Parallel(
-                    name="Condition Group", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                    name="Condition Group", policy=py_trees.common.ParallelPolicy.SuccessOnAll())
             else:
                 condition_group_sequence = py_trees.composites.Parallel(
-                    name="Condition Group", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                    name="Condition Group", policy=py_trees.common.ParallelPolicy.SuccessOnOne())
             for condition in condition_group.iter("Condition"):
                 criterion = OpenScenarioParser.convert_condition_to_atomic(
                     condition, self.other_actors + self.ego_vehicles)
@@ -608,7 +603,7 @@ class OpenScenario(BasicScenario):
         in parallel behavior tree.
         """
         parallel_criteria = py_trees.composites.Parallel("EndConditions (Criteria Group)",
-                                                         policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                         policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         criteria = []
         for endcondition in self.config.storyboard.iter("StopTrigger"):
@@ -659,7 +654,7 @@ class OpenScenario(BasicScenario):
             if not initial_actors:
                 return
 
-            new_actors = CarlaDataProvider.request_new_actors(initial_actors)
+            new_actors = request_new_actors(initial_actors)
             if not new_actors:
                 raise Exception("Error: Unable to add actors")
             for new_actor in new_actors:

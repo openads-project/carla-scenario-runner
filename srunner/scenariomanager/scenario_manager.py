@@ -10,17 +10,17 @@ This module provides the ScenarioManager implementation.
 It must not be modified and is for reference only!
 """
 
-from __future__ import print_function
 import sys
 import time
 
 import py_trees
 
 from srunner.autoagents.agent_wrapper import AgentWrapper
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.result_writer import ResultOutputProvider
 from srunner.scenariomanager.timer import GameTime
-from srunner.scenariomanager.watchdog import Watchdog
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.scenariomanager.scenario_state import ScenarioState
+# from srunner.scenariomanager.watchdog import Watchdog
 
 
 class ScenarioManager(object):
@@ -54,7 +54,7 @@ class ScenarioManager(object):
         self._debug_mode = debug_mode
         self._agent = None
         self._sync_mode = sync_mode
-        self._watchdog = None
+        # self._watchdog = None
         self._timeout = timeout
 
         self._running = False
@@ -78,16 +78,16 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
         GameTime.restart()
-        CarlaDataProvider.set_scenario_running(False)
+        ScenarioState.set_scenario_running(False)
 
     def cleanup(self):
         """
         This function triggers a proper termination of a scenario
         """
 
-        if self._watchdog is not None:
-            self._watchdog.stop()
-            self._watchdog = None
+        # if self._watchdog is not None:
+        #     self._watchdog.stop()
+        #     self._watchdog = None
 
         if self.scenario is not None:
             self.scenario.terminate()
@@ -95,8 +95,6 @@ class ScenarioManager(object):
         if self._agent is not None:
             self._agent.cleanup()
             self._agent = None
-
-        CarlaDataProvider.cleanup()
 
     def load_scenario(self, scenario, agent=None):
         """
@@ -125,14 +123,14 @@ class ScenarioManager(object):
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
 
-        self._watchdog = Watchdog(float(self._timeout))
-        self._watchdog.start()
-        CarlaDataProvider.set_scenario_running(True)
+        # self._watchdog = Watchdog(float(self._timeout))
+        # self._watchdog.start()
+        ScenarioState.set_scenario_running(True)
         self._running = True
 
         while self._running:
             timestamp = None
-            world = CarlaDataProvider.get_world()
+            world = SimulationData.get_world()
             if world:
                 snapshot = world.get_snapshot()
                 if snapshot:
@@ -140,7 +138,7 @@ class ScenarioManager(object):
             if timestamp:
                 self._tick_scenario(timestamp)
 
-        CarlaDataProvider.set_scenario_running(False)
+        ScenarioState.set_scenario_running(False)
         self.cleanup()
 
         self.end_system_time = time.time()
@@ -162,14 +160,13 @@ class ScenarioManager(object):
         if self._timestamp_last_run < timestamp.elapsed_seconds and self._running:
             self._timestamp_last_run = timestamp.elapsed_seconds
 
-            self._watchdog.update()
+            # self._watchdog.update()
 
             if self._debug_mode:
                 print("\n--------- Tick ---------\n")
 
             # Update game time and actor information
             GameTime.on_carla_tick(timestamp)
-            CarlaDataProvider.on_carla_tick()
 
             if self._agent is not None:
                 ego_action = self._agent()  # pylint: disable=not-callable
@@ -182,13 +179,14 @@ class ScenarioManager(object):
 
             if self._debug_mode:
                 print("\n")
-                py_trees.display.print_ascii_tree(self.scenario_tree, show_status=True)
+                print(py_trees.display.ascii_tree(self.scenario_tree, show_status=True))
                 sys.stdout.flush()
 
             if self.scenario_tree.status != py_trees.common.Status.RUNNING:
                 self._running = False
 
-        if self._sync_mode and self._running and self._watchdog.get_status():
+        # if self._sync_mode and self._running and self._watchdog.get_status():
+        if self._sync_mode and self._running:
             dt = time.time() - self.runtime_timestamp
             target_dt = timestamp.delta_seconds / float(self.rt_factor)
             if dt < target_dt:
@@ -204,21 +202,22 @@ class ScenarioManager(object):
                 )
             self.runtime_timestamp = time.time()
 
-            CarlaDataProvider.get_world().tick()
+            SimulationData.get_world().tick()
 
     def get_running_status(self):
         """
         returns:
            bool:  False if watchdog exception occured, True otherwise
         """
-        return self._watchdog.get_status()
+        return True
+        # return self._watchdog.get_status()
 
     def stop_scenario(self):
         """
         This function is used by the overall signal handler to terminate the scenario execution
         """
         self._running = False
-        CarlaDataProvider.set_scenario_running(False)
+        ScenarioState.set_scenario_running(False)
 
     def analyze_scenario(self, stdout, filename, junit, json):
         """

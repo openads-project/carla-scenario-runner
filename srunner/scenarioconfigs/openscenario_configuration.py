@@ -11,7 +11,6 @@ This module provides the key configuration parameters for a scenario based on Op
 
 import logging
 import os
-import time
 import xml.etree.ElementTree as ET
 
 import xmlschema
@@ -21,8 +20,9 @@ import carla
 # pylint: disable=line-too-long
 from srunner.scenarioconfigs.scenario_configuration import ActorConfigurationData, ScenarioConfiguration
 # pylint: enable=line-too-long
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider  # workaround
 from srunner.tools.openscenario_parser import OpenScenarioParser, ParameterRef
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.map_utils import resolve_map_name
 
 
 class OpenScenarioConfiguration(ScenarioConfiguration):
@@ -34,7 +34,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
 
     def __init__(self, filename, client, custom_params):
 
-        super(OpenScenarioConfiguration, self).__init__()
+        super().__init__()
 
         self.xml_tree = ET.parse(filename)
         self.filename = filename
@@ -199,6 +199,9 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
             world.get_settings()
             wmap = world.get_map()
 
+        if self.town and ".xodr" not in self.town:
+            self.town = resolve_map_name(self.client, self.town)
+
         if world is None or (wmap is not None and wmap.name.split('/')[-1] != self.town.split('/')[-1]):
             if ".xodr" in self.town:
                 with open(self.town, 'r', encoding='utf-8') as od_file:
@@ -231,16 +234,11 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
                 while self.client.get_world().get_map().name.split('/')[-1] != self.town:
                     continue
                 world = self.client.get_world()
-            
-            if CarlaDataProvider.is_sync_mode():
-                world.tick()
-            else:
-                world.wait_for_tick()
 
-            # to enable multiple scenarios
-            CarlaDataProvider.set_world(world)
+            SimulationData.prepare_world(world)
+            SimulationData.tick_world()
         else:
-            CarlaDataProvider.set_world(world)
+            SimulationData.prepare_world(world)
 
     def _set_parameters(self):
         """

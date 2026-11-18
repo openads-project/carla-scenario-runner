@@ -9,13 +9,6 @@
 This module provides Challenge routes as standalone scenarios
 """
 
-from __future__ import print_function
-
-import glob
-import os
-import sys
-import importlib
-import inspect
 import traceback
 import py_trees
 
@@ -25,7 +18,6 @@ import carla
 from agents.navigation.local_planner import RoadOption
 
 from srunner.scenarioconfigs.scenario_configuration import ActorConfigurationData
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import ScenarioTriggerer, Idle
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import WaitForBlackboardVariable
@@ -45,10 +37,20 @@ from srunner.scenariomanager.lights_sim import RouteLightsBehavior
 from srunner.scenariomanager.timer import RouteTimeoutBehavior
 
 from srunner.tools.route_parser import RouteParser, DIST_THRESHOLD
+from srunner.tools.scenario_class_loader import ScenarioClassLoader
 from srunner.tools.route_manipulation import interpolate_trajectory
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.actor_factory import request_new_actor
 
 
 SECONDS_GIVEN_PER_METERS = 0.4
+
+def _adopt(node):
+    """Detaches a node from the tree its scenario built, so the route can own it.
+    py_trees allows a single parent, and BasicScenario parents these to its own tree."""
+    if node.parent is not None:
+        node.parent.remove_child(node)
+    return node
 
 
 class RouteScenario(BasicScenario):
@@ -58,7 +60,7 @@ class RouteScenario(BasicScenario):
     along which several smaller scenarios are triggered
     """
 
-    def __init__(self, world, config, debug_mode=False, criteria_enable=True, timeout=300):
+    def __init__(self, config, debug_mode=False, criteria_enable=True, timeout=300):
         """
         Setup all relevant parameters and create scenarios along route
         """
@@ -72,7 +74,6 @@ class RouteScenario(BasicScenario):
 
         if debug_mode:
             self._draw_waypoints(
-                world,
                 self.route,
                 vertical_shift=0.1,
                 size=0.1,
@@ -81,20 +82,19 @@ class RouteScenario(BasicScenario):
             )
 
         self._build_scenarios(
-            world, ego_vehicle, sampled_scenario_definitions, timeout=self.timeout, debug=debug_mode > 0
+            ego_vehicle, sampled_scenario_definitions, timeout=self.timeout, debug=debug_mode > 0
         )
 
-        super(RouteScenario, self).__init__(
-            config.name, [ego_vehicle], config, world, debug_mode > 1, False, criteria_enable
+        super().__init__(
+            config.name, [ego_vehicle], config, debug_mode > 1, False, criteria_enable
         )
 
     def _get_route(self, config):
         """
         Gets the route from the configuration, interpolating it to the desired density,
-        saving it to the CarlaDataProvider and sending it to the agent
+        saving it to the SimulationData and sending it to the agent
 
         Parameters:
-        - world: CARLA world
         - config: Scenario configuration (RouteConfiguration)
         - debug_mode: boolean to decide whether or not the route poitns are printed
         """
@@ -129,7 +129,7 @@ class RouteScenario(BasicScenario):
         elevate_transform = self.route[0][0]
         elevate_transform.location.z += 0.5
 
-        ego_vehicle = CarlaDataProvider.request_new_actor('vehicle.lincoln.mkz',
+        ego_vehicle = request_new_actor('vehicle.lincoln.mkz',
                                                           elevate_transform,
                                                           rolename='hero')
 
@@ -149,7 +149,7 @@ class RouteScenario(BasicScenario):
 
         return int(SECONDS_GIVEN_PER_METERS * route_length)
 
-    def _draw_waypoints(self, world, waypoints, vertical_shift, size, persistency=-1, downsample=1):
+    def _draw_waypoints(self, waypoints, vertical_shift, size, persistency=-1, downsample=1):
         """
         Draw a list of waypoints at a certain height given in vertical_shift.
         """
@@ -172,11 +172,11 @@ class RouteScenario(BasicScenario):
             else:  # LANEFOLLOW
                 color = carla.Color(0, 128, 0)  # Green
 
-            world.debug.draw_point(wp, size=0.1, color=color, life_time=persistency)
+            self._world.debug.draw_point(wp, size=0.1, color=color, life_time=persistency)
 
-        world.debug.draw_point(waypoints[0][0].location + carla.Location(z=vertical_shift), size=2*size,
+        self._world.debug.draw_point(waypoints[0][0].location + carla.Location(z=vertical_shift), size=2*size,
                                color=carla.Color(0, 0, 128), life_time=persistency)
-        world.debug.draw_point(waypoints[-1][0].location + carla.Location(z=vertical_shift), size=2*size,
+        self._world.debug.draw_point(waypoints[-1][0].location + carla.Location(z=vertical_shift), size=2*size,
                                color=carla.Color(128, 128, 128), life_time=persistency)
 
     def _scenario_sampling(self, potential_scenarios, random_seed=0):
@@ -191,30 +191,15 @@ class RouteScenario(BasicScenario):
 
         return sampled_scenarios
 
-    def get_all_scenario_classes(self):
-
-        # Path of all scenario at "srunner/scenarios" folder
-        scenarios_list = glob.glob("{}/srunner/scenarios/*.py".format(os.getenv('SCENARIO_RUNNER_ROOT', "./")))
-
-        all_scenario_classes = {}
-
-        for scenario_file in scenarios_list:
-
-            # Get their module
-            module_name = os.path.basename(scenario_file).split('.')[0]
-            sys.path.insert(0, os.path.dirname(scenario_file))
-            scenario_module = importlib.import_module(module_name)
-
-            # And their members of type class
-            for member in inspect.getmembers(scenario_module, inspect.isclass):
-                # TODO: Filter out any class that isn't a child of BasicScenario
-                all_scenario_classes[member[0]] = member[1]
-
-        return all_scenario_classes
+    def get_all_scenario_classes(self, debug=False):
+        """
+        The shipped scenarios plus whatever --additionalScenario registered, so a
+        route can name a user's scenario exactly as it names a built-in one.
+        """
+        return ScenarioClassLoader.get_all_scenario_classes(debug)
 
     def _build_scenarios(
         self,
-        world,
         ego_vehicle,
         scenario_definitions,
         scenarios_per_tick=5,
@@ -225,17 +210,17 @@ class RouteScenario(BasicScenario):
         Initializes the class of all the scenarios that will be present in the route.
         If a class fails to be initialized, a warning is printed but the route execution isn't stopped
         """
-        all_scenario_classes = self.get_all_scenario_classes()
+        all_scenario_classes = self.get_all_scenario_classes(debug)
         self.list_scenarios = []
         ego_data = ActorConfigurationData(ego_vehicle.type_id, ego_vehicle.get_transform(), 'hero')
 
         if debug:
-            tmap = CarlaDataProvider.get_map()
+            tmap = SimulationData.get_map()
             for scenario_config in scenario_definitions:
                 scenario_loc = scenario_config.trigger_points[0].location
                 debug_loc = tmap.get_waypoint(scenario_loc).transform.location + carla.Location(z=0.2)
-                world.debug.draw_point(debug_loc, size=0.2, color=carla.Color(128, 0, 0), life_time=timeout)
-                world.debug.draw_string(debug_loc, str(scenario_config.name), draw_shadow=False,
+                self._world.debug.draw_point(debug_loc, size=0.2, color=carla.Color(128, 0, 0), life_time=timeout)
+                self._world.debug.draw_string(debug_loc, str(scenario_config.name), draw_shadow=False,
                                         color=carla.Color(0, 0, 128), life_time=timeout, persistent_lines=True)
 
         for scenario_number, scenario_config in enumerate(scenario_definitions):
@@ -245,11 +230,11 @@ class RouteScenario(BasicScenario):
 
             try:
                 scenario_class = all_scenario_classes[scenario_config.type]
-                scenario_instance = scenario_class(world, [ego_vehicle], scenario_config, timeout=timeout)
+                scenario_instance = scenario_class([ego_vehicle], scenario_config, timeout=timeout)
 
                 # Do a tick every once in a while to avoid spawning everything at the same time
                 if scenario_number % scenarios_per_tick == 0:
-                    world.tick()
+                    SimulationData.tick_world()
 
             except Exception as e:
                 if not debug:
@@ -282,14 +267,14 @@ class RouteScenario(BasicScenario):
         scenario_trigger_distance = DIST_THRESHOLD  # Max trigger distance between route and scenario
 
         behavior = py_trees.composites.Parallel(name="Route Behavior",
-                                                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                                                policy=py_trees.common.ParallelPolicy.SuccessOnAll())
 
         scenario_behaviors = []
         blackboard_list = []
 
         for scenario in self.list_scenarios:
             if scenario.behavior_tree is not None:
-                scenario_behaviors.append(scenario.behavior_tree)
+                scenario_behaviors.append(_adopt(scenario.behavior_tree))
                 blackboard_list.append([scenario.config.route_var_name,
                                         scenario.config.trigger_points[0].location,
                                         scenario.name])
@@ -311,7 +296,7 @@ class RouteScenario(BasicScenario):
         and adds the scenario specific ones, which will only be active during their scenario
         """
         criteria = py_trees.composites.Parallel(name="Criteria",
-                                                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         # End condition
         criteria.add_child(RouteCompletionTest(self.ego_vehicles[0], route=self.route))
@@ -368,12 +353,12 @@ class RouteScenario(BasicScenario):
         """
         return RouteTimeoutBehavior(self.ego_vehicles[0], self.route)
 
-    def _initialize_environment(self, world):
+    def _initialize_environment(self):
         """
         Set the weather
         """
         # Set the appropriate weather conditions
-        world.set_weather(self.config.weather[0][1])
+        self._world.set_weather(self.config.weather[0][1])
 
     def _create_criterion_tree(self, scenario, criteria):
         """
@@ -386,13 +371,13 @@ class RouteScenario(BasicScenario):
         var_name = scenario.config.route_var_name
         check_name = "WaitForBlackboardVariable: {}".format(var_name)
 
-        criteria_tree = py_trees.composites.Sequence(name=scenario_name)
+        criteria_tree = py_trees.composites.Sequence(name=scenario_name, memory=True)
         criteria_tree.add_child(WaitForBlackboardVariable(var_name, True, False, name=check_name))
 
         scenario_criteria = py_trees.composites.Parallel(name=scenario_name,
-                                                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         for criterion in criteria:
-            scenario_criteria.add_child(criterion)
+            scenario_criteria.add_child(_adopt(criterion))
         scenario_criteria.add_child(WaitForBlackboardVariable(var_name, False, None, name=check_name))
 
         criteria_tree.add_child(scenario_criteria)

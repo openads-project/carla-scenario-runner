@@ -24,7 +24,8 @@ from distutils.util import strtobool
 from shapely.geometry import Polygon
 
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.actor_state import get_road_users
 
 
 class ApproachingControl(BasicControl):
@@ -258,7 +259,7 @@ class ApproachingControl(BasicControl):
         vehicles_same_direction = 0
         considered_vehicles = 0
         
-        actors = CarlaDataProvider.get_actors()
+        actors = get_road_users(SimulationData.get_world())
         for key, actor in list(actors):
             obj_location = actor.get_transform().location
             obj_rotation = actor.get_transform().rotation
@@ -308,7 +309,7 @@ class ApproachingControl(BasicControl):
             return ttx # then there is to less information to predict
         predicted_ego_state = self._predict_ego_state(ego_velocity_abs, considered_time_horizon_in_seconds, discretization)
         
-        for object_ru_item in CarlaDataProvider.get_actors():
+        for object_ru_item in get_road_users(SimulationData.get_world()):
             ttx_to_ru = math.inf
             
             # get actual ru state

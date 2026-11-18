@@ -24,7 +24,8 @@ from trajectory_planning_msgs.msg import Trajectory
 import carla
 
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl  # pylint: disable=import-error
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.scenario_state import ScenarioState
+from srunner.scenariomanager.simulation_data import SimulationData
 
 
 class RosVehicleControlRouteAction(BasicControl):
@@ -88,7 +89,7 @@ class RosVehicleControlRouteAction(BasicControl):
             self._route_action_time = None
 
             self.node.call_route_action()
-            CarlaDataProvider.register_route_action_client()
+            ScenarioState.register_route_action_client()
 
         # Apply initial speed until the end time is reached
         if time < self._initial_speed_end_time:
@@ -96,7 +97,7 @@ class RosVehicleControlRouteAction(BasicControl):
 
     def check_requirements(self):
 
-        if not CarlaDataProvider.is_scenario_running():
+        if not ScenarioState.is_scenario_running():
             return False
 
         if not self.node.goal_pose:
@@ -136,7 +137,7 @@ class RosVehicleControlRouteAction(BasicControl):
         self._actor.set_target_velocity(carla.Vector3D(vx, vy, 0))
 
     def _get_sim_time(self):
-        world = CarlaDataProvider.get_world()
+        world = SimulationData.get_world()
         if world is None:
             return None
 
@@ -246,7 +247,7 @@ class NavigationClient(Node):
 
         if result is not None and result.status == GoalStatus.STATUS_SUCCEEDED:
             self.reached_goal = True
-            CarlaDataProvider.mark_route_action_completed()
+            ScenarioState.mark_route_action_completed()
             
         self.get_logger().info(f"Route action goal completed with status: {result}")
         self.get_logger().info("Shutting down rclpy after route result callback")

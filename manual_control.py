@@ -42,8 +42,6 @@ Use ARROWS or WASD keys for control.
     ESC          : quit
 """
 
-from __future__ import print_function
-
 # ==============================================================================
 # -- imports -------------------------------------------------------------------
 # ==============================================================================
@@ -177,7 +175,10 @@ class World(object):
         self.world.wait_for_tick()
 
     def tick(self, clock, wait_for_repetitions):
-        if len(self.world.get_actors().filter(self.player_name)) < 1:
+        # Check the world snapshot instead of the actor list: with CARLA UE5
+        # the cached actor list of a freshly connected client can momentarily
+        # be empty, and it also never reflects batch destructions.
+        if self.world.get_snapshot().find(self.player.id) is None:
             if not wait_for_repetitions:
                 return False
             else:
@@ -208,8 +209,6 @@ class World(object):
             if sensor is not None:
                 sensor.stop()
                 sensor.destroy()
-        if self.player is not None:
-            self.player.destroy()
 
 
 # ==============================================================================
@@ -721,7 +720,6 @@ class RadarSensor(object):
         self.sensor = None
         self._parent = parent_actor
         bound_x = 0.5 + self._parent.bounding_box.extent.x
-        bound_y = 0.5 + self._parent.bounding_box.extent.y
         bound_z = 0.5 + self._parent.bounding_box.extent.z
 
         self.velocity_range = 7.5 # m/s
@@ -812,7 +810,8 @@ class CameraManager(object):
             bp = bp_library.find(item[0])
             bp.set_attribute('image_size_x', str(hud.dim[0]))
             bp.set_attribute('image_size_y', str(hud.dim[1]))
-            bp.set_attribute('gamma', '2.2')
+            if bp.has_attribute('gamma'):  # removed from the CARLA UE5 cameras
+                bp.set_attribute('gamma', '2.2')
             item.append(bp)
         self.index = None
 

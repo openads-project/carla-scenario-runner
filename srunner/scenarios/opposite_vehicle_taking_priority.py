@@ -10,12 +10,9 @@ Scenarios in which another (opposite) vehicle 'illegally' takes
 priority, e.g. by running a red traffic light.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       ActorDestroy,
                                                                       TrafficLightFreezer,
@@ -33,6 +30,8 @@ from srunner.tools.scenario_helper import (get_geometric_linear_intersection,
                                            get_closest_traffic_light)
 
 from srunner.tools.background_manager import HandleJunctionScenario
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.actor_factory import request_new_actor
 
 
 
@@ -42,14 +41,12 @@ class OppositeVehicleJunction(BasicScenario):
     forcing it to break to avoid a collision
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self._source_dist = 30
         self._sink_dist = 10
         self._adversary_speed = 60 / 3.6 # m/s
@@ -70,7 +67,6 @@ class OppositeVehicleJunction(BasicScenario):
         super().__init__("OppositeVehicleJunction",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -79,7 +75,7 @@ class OppositeVehicleJunction(BasicScenario):
         Custom initialization
         """
         ego_location = config.trigger_points[0].location
-        self._ego_wp = CarlaDataProvider.get_map().get_waypoint(ego_location)
+        self._ego_wp = SimulationData.get_map().get_waypoint(ego_location)
 
         # Get the junction
         starting_wp = self._ego_wp
@@ -119,8 +115,8 @@ class OppositeVehicleJunction(BasicScenario):
         self.parking_slots.append(source_transform.location)
 
         # Spawn the actor and move it below ground
-        opposite_actor = CarlaDataProvider.request_new_actor(
-            'vehicle.*', self._spawn_location, attribute_filter={'special_type': 'emergency'})
+        opposite_actor = request_new_actor(
+            'vehicle.ambulance.ford', self._spawn_location)
         if not opposite_actor:
             raise Exception("Couldn't spawn the actor")
         lights = opposite_actor.get_light_state()
@@ -176,13 +172,13 @@ class OppositeVehicleRunningRedLight(OppositeVehicleJunction):
     Signalized junction version, where the other vehicle runs a red light
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+        super().__init__(ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
 
     def _initialize_actors(self, config):
         """
@@ -204,11 +200,11 @@ class OppositeVehicleRunningRedLight(OppositeVehicleJunction):
         Hero vehicle is entering a junction in an urban area, at a signalized intersection,
         while another actor runs a red lift, forcing the ego to break.
         """
-        sequence = py_trees.composites.Sequence(name="OppositeVehicleRunningRedLight")
+        sequence = py_trees.composites.Sequence(name="OppositeVehicleRunningRedLight", memory=True)
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._sync_time, self._collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(
@@ -220,7 +216,7 @@ class OppositeVehicleRunningRedLight(OppositeVehicleJunction):
         start_location = self._spawn_wp.transform.location
         time = start_location.distance(end_location) / self._adversary_speed
 
-        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="MainBehavior")
         main_behavior.add_child(ConstantVelocityAgentBehavior(
             self.other_actors[0], target_location=end_location,
             target_speed=self._adversary_speed,
@@ -233,11 +229,11 @@ class OppositeVehicleRunningRedLight(OppositeVehicleJunction):
         sequence.add_child(ActorDestroy(self.other_actors[0]))
         sequence.add_child(WaitEndIntersection(self.ego_vehicles[0]))
 
-        tls_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        tls_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TlsBehavior")
         tls_behavior.add_child(TrafficLightFreezer(self._tl_dict))
         tls_behavior.add_child(sequence)
 
-        root = py_trees.composites.Sequence()
+        root = py_trees.composites.Sequence(name="Root", memory=True)
         if self.route_mode:
             root.add_child(HandleJunctionScenario(
                 clear_junction=True,
@@ -258,24 +254,24 @@ class OppositeVehicleTakingPriority(OppositeVehicleJunction):
     Non signalized version
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+        super().__init__(ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
 
     def _create_behavior(self):
         """
         Hero vehicle is entering a junction in an urban area, at a signalized intersection,
         while another actor runs a red lift, forcing the ego to break.
         """
-        sequence = py_trees.composites.Sequence(name="OppositeVehicleTakingPriority")
+        sequence = py_trees.composites.Sequence(name="OppositeVehicleTakingPriority", memory=True)
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._sync_time, self._collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(
@@ -287,7 +283,7 @@ class OppositeVehicleTakingPriority(OppositeVehicleJunction):
         start_location = self._spawn_wp.transform.location
         time = start_location.distance(end_location) / self._adversary_speed
 
-        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="MainBehavior")
         main_behavior.add_child(ConstantVelocityAgentBehavior(
             self.other_actors[0], target_location=end_location,
             target_speed=self._adversary_speed,
@@ -298,7 +294,7 @@ class OppositeVehicleTakingPriority(OppositeVehicleJunction):
 
         sequence.add_child(main_behavior)
 
-        root = py_trees.composites.Sequence()
+        root = py_trees.composites.Sequence(name="Root", memory=True)
         if self.route_mode:
             root.add_child(HandleJunctionScenario(
                 clear_junction=True,

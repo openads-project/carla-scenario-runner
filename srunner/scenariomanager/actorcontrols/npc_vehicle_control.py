@@ -15,9 +15,9 @@ import carla
 from agents.navigation.basic_agent import LocalPlanner
 from agents.navigation.local_planner import RoadOption
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.actorcontrols.basic_control import BasicControl
 from srunner.scenariomanager.timer import GameTime
+from srunner.scenariomanager.simulation_data import SimulationData
 
 
 class NpcVehicleControl(BasicControl):
@@ -34,7 +34,7 @@ class NpcVehicleControl(BasicControl):
     _args = {'K_P': 1.0, 'K_D': 0.01, 'K_I': 0.0, 'dt': 0.05}
 
     def __init__(self, actor, args=None):
-        super(NpcVehicleControl, self).__init__(actor)
+        super().__init__(actor)
 
         self._local_planner = LocalPlanner(  # pylint: disable=undefined-variable
             self._actor, opt_dict={
@@ -52,7 +52,7 @@ class NpcVehicleControl(BasicControl):
         """
         plan = []
         for transform in self._waypoints:
-            waypoint = CarlaDataProvider.get_map().get_waypoint(
+            waypoint = SimulationData.get_map().get_waypoint(
                 transform.location, project_to_road=True, lane_type=carla.LaneType.Any)
             plan.append((waypoint, RoadOption.LANEFOLLOW))
         self._local_planner.set_global_plan(plan)
