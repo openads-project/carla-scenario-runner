@@ -553,7 +553,6 @@ class OSCStartEndCondition(AtomicCondition):
         self._element_name = element_name
         self._rule = rule.upper()
         self._start_time = None
-        self._blackboard = py_trees.blackboard.Blackboard()
 
     def initialise(self):
         """
@@ -570,7 +569,7 @@ class OSCStartEndCondition(AtomicCondition):
 
         if new_status == py_trees.common.Status.RUNNING:
             blackboard_variable_name = "({}){}-{}".format(self._element_type, self._element_name, self._rule)
-            element_start_time = self._blackboard.get(blackboard_variable_name)
+            element_start_time = get_blackboard(blackboard_variable_name)
             if element_start_time and element_start_time >= self._start_time:
                 new_status = py_trees.common.Status.SUCCESS
 

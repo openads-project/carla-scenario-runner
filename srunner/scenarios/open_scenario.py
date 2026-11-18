@@ -28,7 +28,7 @@ from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.weather_sim import OSCWeatherBehavior
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.openscenario_parser import OpenScenarioParser, oneshot_with_check, ParameterRef
-from srunner.tools.blackboard import get_blackboard_keys
+from srunner.tools.blackboard import get_blackboard_keys, set_blackboard
 from srunner.tools.actor_factory import request_new_actors
 
 
@@ -94,17 +94,15 @@ class StoryElementStatusToBlackboard(py_trees.decorators.Decorator):
         super().__init__(name=child.name, child=child)
         self.story_element_type = story_element_type
         self.element_name = element_name
-        self.blackboard = py_trees.blackboard.Blackboard()
 
     def initialise(self):
         """
         Record the elements's start time on the blackboard
         """
-        self.blackboard.set(
-            name="({}){}-{}".format(self.story_element_type.upper(),
-                                    self.element_name, "START"),
-            value=GameTime.get_time(),
-            overwrite=True
+        set_blackboard(
+            "({}){}-{}".format(self.story_element_type.upper(),
+                               self.element_name, "START"),
+            GameTime.get_time()
         )
 
     def update(self):
@@ -145,11 +143,10 @@ class StoryElementStatusToBlackboard(py_trees.decorators.Decorator):
         rules = rules or ["END"]
 
         for rule in rules:
-            self.blackboard.set(
-                name="({}){}-{}".format(self.story_element_type.upper(),
-                                        self.element_name, rule),
-                value=GameTime.get_time(),
-                overwrite=True
+            set_blackboard(
+                "({}){}-{}".format(self.story_element_type.upper(),
+                                   self.element_name, rule),
+                GameTime.get_time()
             )
 
 

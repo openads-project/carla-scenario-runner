@@ -41,7 +41,21 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (TrafficLig
                                                                       TrafficLightControllerSetter)
 # pylint: disable=unused-import
 # For the following includes the pylint check is disabled, as these are accessed via globals()
-from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, OffRoadTest, EndofRoadTest
+from srunner.scenariomanager.scenarioatomics.atomic_criteria import (CollisionTest,
+                                                                     MaxVelocityTest,
+                                                                     DrivenDistanceTest,
+                                                                     AverageVelocityTest,
+                                                                     KeepLaneTest,
+                                                                     ReachedRegionTest,
+                                                                     OnSidewalkTest,
+                                                                     WrongLaneTest,
+                                                                     InRadiusRegionTest,
+                                                                     InRouteTest,
+                                                                     RouteCompletionTest,
+                                                                     RunningRedLightTest,
+                                                                     RunningStopTest,
+                                                                     OffRoadTest,
+                                                                     EndofRoadTest)
 # pylint: enable=unused-import
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (InTriggerDistanceToVehicle,
                                                                                InTriggerDistanceToOSCPosition,
@@ -58,6 +72,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
                                                                                CheckParameter,
                                                                                WaitForTrafficLightControllerState)
 from srunner.scenariomanager.timer import TimeOut, SimulationTimeCondition
+from srunner.tools.blackboard import get_blackboard
 from srunner.tools.py_trees_port import oneshot_behavior
 from srunner.tools.scenario_helper import get_offset_transform, get_troad_from_transform
 from srunner.scenariomanager.simulation_data import SimulationData
@@ -69,9 +84,8 @@ def oneshot_with_check(variable_name, behaviour, name=None):
     Check if the blackboard contains already variable_name and
     return a oneshot_behavior for behaviour.
     """
-    blackboard = py_trees.blackboard.Blackboard()
     # check if the variable_name already exists in the blackboard
-    if blackboard.get(variable_name) is not None:
+    if get_blackboard(variable_name) is not None:
         print("Warning: {} is already used before. Check your XOSC for duplicated names".format(variable_name))
 
     return oneshot_behavior(variable_name, behaviour, name)
