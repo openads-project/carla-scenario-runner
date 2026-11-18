@@ -127,7 +127,12 @@ class BasicScenario(object):
                 raise ValueError("WARNING: Scenario {} couldn't be setup, make sure the criteria is either "
                                  "a list or a py_trees.composites.Composite".format(self.name))
 
-            self.scenario_tree.add_child(self.criteria_tree)
+            if self.criteria_tree.children:
+                self.scenario_tree.add_child(self.criteria_tree)
+            else:
+                # OpenADS: py_trees 2.x lets an empty composite succeed at once, which would end the
+                # SuccessOnOne scenario tree on its first tick for scenarios without criteria.
+                self.criteria_tree = None
 
         # Create the timeout behavior
         self.timeout_node = self._create_timeout_behavior()
