@@ -427,6 +427,8 @@ class ScenarioRunner(object):
         """
         Load and run the scenario given by config
         """
+        # OpenADS: every scenario gets its own cleanup, also with several OpenSCENARIO files or routes
+        self.finished = False
         result = False
         if not self._load_and_wait_for_world(config.town, config.ego_vehicles):
             self._cleanup()
@@ -532,7 +534,6 @@ class ScenarioRunner(object):
         # Execute each configuration
         for config in scenario_configurations:
             for _ in range(self._args.repetitions):
-                self.finished = False
                 result = self._load_and_run_scenario(config)
 
             self._cleanup()
