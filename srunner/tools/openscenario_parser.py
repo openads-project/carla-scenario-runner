@@ -466,14 +466,17 @@ class OpenScenarioParser(object):
             catalogs: XML Catalogs that could contain the EnvironmentAction
 
         returns:
-           Weather (srunner.scenariomanager.weather_sim.Weather)
+           Weather (srunner.scenariomanager.weather_sim.Weather), or None if xml_tree has no
+           EnvironmentAction
         """
 
         if xml_tree.findall('.//EnvironmentAction'):
             node = xml_tree.findall('.//EnvironmentAction')[0]
             set_environment = next(node.iter("EnvironmentAction"))
         else:
-            return Weather(carla.WeatherParameters.ClearNoon)
+            # OpenADS: no ClearNoon fallback. A scenario without an EnvironmentAction leaves the
+            # weather to the map or to another client, e.g. OpenADSim's environment client.
+            return None
 
         if sum(1 for _ in set_environment.iter("Weather")) != 0:
             environment = set_environment.find("Environment")

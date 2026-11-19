@@ -252,11 +252,13 @@ class OpenScenario(BasicScenario):
         env_behavior = py_trees.composites.Parallel(
             policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="EnvironmentBehavior")
 
-        weather_update = ChangeWeather(
-            OpenScenarioParser.get_weather_from_env_action(self.config.init, self.config.catalogs))
+        # Only a scenario with an EnvironmentAction in its Init sets the weather.
+        weather = OpenScenarioParser.get_weather_from_env_action(self.config.init, self.config.catalogs)
+        if weather is not None:
+            weather_update = ChangeWeather(weather)
+            env_behavior.add_child(oneshot_with_check(variable_name="InitialWeather", behaviour=weather_update))
         road_friction = ChangeRoadFriction(
             OpenScenarioParser.get_friction_from_env_action(self.config.init, self.config.catalogs))
-        env_behavior.add_child(oneshot_with_check(variable_name="InitialWeather", behaviour=weather_update))
         env_behavior.add_child(oneshot_with_check(variable_name="InitRoadFriction", behaviour=road_friction))
 
         return env_behavior
