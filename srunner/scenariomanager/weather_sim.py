@@ -13,14 +13,15 @@ behavior of the sun.
 
 import datetime
 import math
-import operator
 
 import ephem
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.timer import GameTime
+from srunner.tools.blackboard import get_blackboard, set_blackboard
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.actor_state import has_actor_ticked
 
 
 class Weather(object):
@@ -57,7 +58,7 @@ class Weather(object):
 
         self._sun = ephem.Sun()  # pylint: disable=no-member
         self._observer_location = ephem.Observer()
-        geo_location = CarlaDataProvider.get_map().transform_to_geolocation(carla.Location(0, 0, 0))
+        geo_location = SimulationData.get_map().transform_to_geolocation(carla.Location(0, 0, 0))
         self._observer_location.lon = str(geo_location.longitude)
         self._observer_location.lat = str(geo_location.latitude)
 
@@ -112,7 +113,7 @@ class OSCWeatherBehavior(py_trees.behaviour.Behaviour):
         """
         Setup parameters
         """
-        super(OSCWeatherBehavior, self).__init__(name)
+        super().__init__(name)
         self._weather = None
         self._current_time = None
 
@@ -140,17 +141,13 @@ class OSCWeatherBehavior(py_trees.behaviour.Behaviour):
 
         weather = None
 
-        try:
-            check_weather = operator.attrgetter("CarlaWeather")
-            weather = check_weather(py_trees.blackboard.Blackboard())
-        except AttributeError:
-            pass
+        weather = get_blackboard("CarlaWeather", None)
 
         if weather:
             self._weather = weather
-            delattr(py_trees.blackboard.Blackboard(), "CarlaWeather")
-            CarlaDataProvider.get_world().set_weather(self._weather.carla_weather)
-            py_trees.blackboard.Blackboard().set("Datetime", self._weather.datetime, overwrite=True)
+            py_trees.blackboard.Blackboard.unset("CarlaWeather")
+            SimulationData.get_world().set_weather(self._weather.carla_weather)
+            set_blackboard("Datetime", self._weather.datetime)
 
         if self._weather and self._weather.animation:
             new_time = GameTime.get_time()
@@ -159,9 +156,9 @@ class OSCWeatherBehavior(py_trees.behaviour.Behaviour):
             if delta_time > 1:
                 self._weather.update(delta_time)
                 self._current_time = new_time
-                CarlaDataProvider.get_world().set_weather(self._weather.carla_weather)
+                SimulationData.get_world().set_weather(self._weather.carla_weather)
 
-                py_trees.blackboard.Blackboard().set("Datetime", self._weather.datetime, overwrite=True)
+                set_blackboard("Datetime", self._weather.datetime)
 
         return py_trees.common.Status.RUNNING
 
@@ -184,7 +181,7 @@ class RouteWeatherBehavior(py_trees.behaviour.Behaviour):
         Setup parameters
         """
         super().__init__(name)
-        self._world = CarlaDataProvider.get_world()
+        self._world = SimulationData.get_world()
         self._ego_vehicle = ego_vehicle
         self._route = route
 
@@ -278,9 +275,9 @@ class RouteWeatherBehavior(py_trees.behaviour.Behaviour):
         """
         new_status = py_trees.common.Status.RUNNING
 
-        ego_location = CarlaDataProvider.get_location(self._ego_vehicle)
-        if ego_location is None:
+        if not has_actor_ticked(self._ego_vehicle):
             return new_status
+        ego_location = self._ego_vehicle.get_location()
 
         new_index = self._current_index
 

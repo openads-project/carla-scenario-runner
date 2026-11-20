@@ -33,7 +33,7 @@ class CarlaAutopilot(BasicControl):
     """
 
     def __init__(self, actor, args=None):
-        super(CarlaAutopilot, self).__init__(actor)
+        super().__init__(actor)
         self._actor.set_autopilot(enabled=True)
 
     def reset(self):

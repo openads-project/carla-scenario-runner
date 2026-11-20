@@ -9,48 +9,20 @@
 Scenarios in which the ego has to cross a flow of bycicles
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import BicycleFlow, TrafficLightFreezer, ScenarioTimeout
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, ScenarioTimeoutTest
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import WaitEndIntersection
 from srunner.scenarios.basic_scenario import BasicScenario
 
 from srunner.tools.background_manager import HandleJunctionScenario
+from srunner.tools.scenario_helper import convert_dict_to_location, get_value_parameter, get_interval_parameter
+
 from agents.navigation.local_planner import RoadOption
+from srunner.scenariomanager.simulation_data import SimulationData
 
-
-def convert_dict_to_location(actor_dict):
-    """
-    Convert a JSON string to a Carla.Location
-    """
-    location = carla.Location(
-        x=float(actor_dict['x']),
-        y=float(actor_dict['y']),
-        z=float(actor_dict['z'])
-    )
-    return location
-
-
-def get_value_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return p_type(config.other_parameters[name]['value'])
-    else:
-        return default
-
-
-def get_interval_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return [
-            p_type(config.other_parameters[name]['from']),
-            p_type(config.other_parameters[name]['to'])
-        ]
-    else:
-        return default
 
 class CrossingBicycleFlow(BasicScenario):
     """
@@ -59,14 +31,12 @@ class CrossingBicycleFlow(BasicScenario):
     ambulances or firetrucks.
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
 
         self._start_flow = convert_dict_to_location(config.other_parameters['start_actor_flow'])
@@ -77,7 +47,6 @@ class CrossingBicycleFlow(BasicScenario):
 
         self._signalized_junction = False
 
-        self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
 
         self._green_light_delay = 5
         self._scenario_timeout = 240
@@ -87,14 +56,13 @@ class CrossingBicycleFlow(BasicScenario):
         super().__init__("CrossingBicycleFlow",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
     def _initialize_actors(self, config):
 
         ego_location = config.trigger_points[0].location
-        self._ego_wp = CarlaDataProvider.get_map().get_waypoint(ego_location)
+        self._ego_wp = SimulationData.get_map().get_waypoint(ego_location)
 
         # Get the junction
         starting_wp = self._ego_wp
@@ -161,14 +129,14 @@ class CrossingBicycleFlow(BasicScenario):
         """
 
         root = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Root")
         root.add_child(BicycleFlow(self._plan, self._source_dist_interval, self._sink_distance, self._flow_speed, True))
         root.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
         root.add_child(WaitEndIntersection(self.ego_vehicles[0]))
 
         # Freeze the traffic lights to allow the flow to populate the junction
         if self._signalized_junction:
-            tl_freezer_sequence = py_trees.composites.Sequence("Traffic Light Behavior")
+            tl_freezer_sequence = py_trees.composites.Sequence("Traffic Light Behavior", memory=True)
             tl_freezer_sequence.add_child(TrafficLightFreezer(self._init_tl_dict, duration=self._green_light_delay))
             tl_freezer_sequence.add_child(TrafficLightFreezer(self._flow_tl_dict))
             root.add_child(tl_freezer_sequence)
@@ -177,7 +145,7 @@ class CrossingBicycleFlow(BasicScenario):
         if not self.route_mode:
             return root
 
-        sequence = py_trees.composites.Sequence()
+        sequence = py_trees.composites.Sequence(name="Sequence", memory=True)
         sequence.add_child(HandleJunctionScenario(
             clear_junction=True,
             clear_ego_entry=True,

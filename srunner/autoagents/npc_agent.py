@@ -7,13 +7,11 @@
 This module provides an NPC agent to control the ego vehicle
 """
 
-from __future__ import print_function
-
 import carla
 from agents.navigation.basic_agent import BasicAgent
 
 from srunner.autoagents.autonomous_agent import AutonomousAgent
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.simulation_data import SimulationData
 
 
 class NpcAgent(AutonomousAgent):
@@ -62,7 +60,7 @@ class NpcAgent(AutonomousAgent):
 
             # Search for the ego actor
             hero_actor = None
-            for actor in CarlaDataProvider.get_world().get_actors():
+            for actor in SimulationData.get_world().get_actors():
                 if 'role_name' in actor.attributes and actor.attributes['role_name'] == 'hero':
                     hero_actor = actor
                     break
@@ -73,13 +71,15 @@ class NpcAgent(AutonomousAgent):
             # Add an agent that follows the route to the ego
             self._agent = BasicAgent(hero_actor, 30)
 
+            # The global plan is already a dense, ordered waypoint route: follow
+            # it directly. Re-tracing between consecutive points is fragile
+            # inside junctions, where a point can snap to an overlapping
+            # connector road of another maneuver and the planner then has no
+            # option but to detour around the block.
             plan = []
-            prev_wp = None
-            for transform, _ in self._global_plan_world_coord:
-                wp = CarlaDataProvider.get_map().get_waypoint(transform.location)
-                if prev_wp:
-                    plan.extend(self._agent.trace_route(prev_wp, wp))
-                prev_wp = wp
+            for transform, road_option in self._global_plan_world_coord:
+                wp = SimulationData.get_map().get_waypoint(transform.location)
+                plan.append((wp, road_option))
 
             self._agent.set_global_plan(plan)
 

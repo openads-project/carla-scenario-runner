@@ -22,7 +22,6 @@ import py_trees
 
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       ActorDestroy,
                                                                       KeepVelocity,
@@ -36,6 +35,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
 from srunner.scenariomanager.timer import TimeOut
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.scenario_helper import get_waypoint_in_distance
+from srunner.tools.actor_factory import request_new_actor
 
 
 class FollowLeadingVehicle(BasicScenario):
@@ -49,7 +49,7 @@ class FollowLeadingVehicle(BasicScenario):
 
     timeout = 120            # Timeout of scenario in seconds
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=60):
         """
         Setup all relevant parameters and create scenario
@@ -57,20 +57,17 @@ class FollowLeadingVehicle(BasicScenario):
         If randomize is True, the scenario parameters are randomized
         """
 
-        self._map = CarlaDataProvider.get_map()
         self._first_vehicle_location = 25
         self._first_vehicle_speed = 10
-        self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
         self._other_actor_max_brake = 1.0
         self._other_actor_stop_in_front_intersection = 20
         self._other_actor_transform = None
         # Timeout of scenario in seconds
         self.timeout = timeout
 
-        super(FollowLeadingVehicle, self).__init__("FollowVehicle",
+        super().__init__("FollowVehicle",
                                                    ego_vehicles,
                                                    config,
-                                                   world,
                                                    debug_mode,
                                                    criteria_enable=criteria_enable)
 
@@ -80,7 +77,7 @@ class FollowLeadingVehicle(BasicScenario):
             # Example code how to randomize start location
             # distance = random.randint(20, 80)
             # new_location, _ = get_location_in_distance(self.ego_vehicles[0], distance)
-            # waypoint = CarlaDataProvider.get_map().get_waypoint(new_location)
+            # waypoint = SimulationData.get_map().get_waypoint(new_location)
             # waypoint.transform.location.z += 39
             # self.other_actors[0].set_transform(waypoint.transform)
 
@@ -91,7 +88,7 @@ class FollowLeadingVehicle(BasicScenario):
         waypoint, _ = get_waypoint_in_distance(self._reference_waypoint, self._first_vehicle_location)
         transform = waypoint.transform
         transform.location.z += 0.5
-        first_vehicle = CarlaDataProvider.request_new_actor('vehicle.nissan.patrol', transform)
+        first_vehicle = request_new_actor('vehicle.nissan.patrol', transform)
         self.other_actors.append(first_vehicle)
 
     def _create_behavior(self):
@@ -107,7 +104,7 @@ class FollowLeadingVehicle(BasicScenario):
         # let the other actor drive until next intersection
         driving_to_next_intersection = py_trees.composites.Parallel(
             "DrivingTowardsIntersection",
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         driving_to_next_intersection.add_child(WaypointFollower(self.other_actors[0], self._first_vehicle_speed))
         driving_to_next_intersection.add_child(InTriggerDistanceToNextIntersection(
@@ -118,7 +115,7 @@ class FollowLeadingVehicle(BasicScenario):
 
         # end condition
         endcondition = py_trees.composites.Parallel("Waiting for end position",
-                                                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                                                    policy=py_trees.common.ParallelPolicy.SuccessOnAll())
         endcondition_part1 = InTriggerDistanceToVehicle(self.other_actors[0],
                                                         self.ego_vehicles[0],
                                                         distance=20,
@@ -128,7 +125,7 @@ class FollowLeadingVehicle(BasicScenario):
         endcondition.add_child(endcondition_part2)
 
         # Build behavior tree
-        sequence = py_trees.composites.Sequence("Sequence Behavior")
+        sequence = py_trees.composites.Sequence("Sequence Behavior", memory=True)
         sequence.add_child(driving_to_next_intersection)
         sequence.add_child(stop)
         sequence.add_child(endcondition)
@@ -167,24 +164,21 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
 
     timeout = 120            # Timeout of scenario in seconds
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True):
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True):
         """
         Setup all relevant parameters and create scenario
         """
-        self._map = CarlaDataProvider.get_map()
         self._first_actor_location = 25
         self._second_actor_location = self._first_actor_location + 41
         self._first_actor_speed = 10
         self._second_actor_speed = 1.5
-        self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
         self._other_actor_max_brake = 1.0
         self._first_actor_transform = None
         self._second_actor_transform = None
 
-        super(FollowLeadingVehicleWithObstacle, self).__init__("FollowLeadingVehicleWithObstacle",
+        super().__init__("FollowLeadingVehicleWithObstacle",
                                                                ego_vehicles,
                                                                config,
-                                                               world,
                                                                debug_mode,
                                                                criteria_enable=criteria_enable)
         if randomize:
@@ -221,9 +215,9 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
             carla.Rotation(second_actor_waypoint.transform.rotation.pitch, yaw_1,
                            second_actor_waypoint.transform.rotation.roll))
 
-        first_actor = CarlaDataProvider.request_new_actor(
+        first_actor = request_new_actor(
             'vehicle.nissan.patrol', first_actor_transform)
-        second_actor = CarlaDataProvider.request_new_actor(
+        second_actor = request_new_actor(
             'vehicle.diamondback.century', second_actor_transform)
 
         first_actor.set_simulate_physics(enabled=False)
@@ -245,16 +239,16 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
         # let the other actor drive until next intersection
         driving_to_next_intersection = py_trees.composites.Parallel(
             "Driving towards Intersection",
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         obstacle_clear_road = py_trees.composites.Parallel("Obstalce clearing road",
-                                                           policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                           policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         obstacle_clear_road.add_child(DriveDistance(self.other_actors[1], 4))
         obstacle_clear_road.add_child(KeepVelocity(self.other_actors[1], self._second_actor_speed))
 
         stop_near_intersection = py_trees.composites.Parallel(
             "Waiting for end position near Intersection",
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         stop_near_intersection.add_child(WaypointFollower(self.other_actors[0], 10))
         stop_near_intersection.add_child(InTriggerDistanceToNextIntersection(self.other_actors[0], 20))
 
@@ -264,7 +258,7 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
 
         # end condition
         endcondition = py_trees.composites.Parallel("Waiting for end position",
-                                                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                                                    policy=py_trees.common.ParallelPolicy.SuccessOnAll())
         endcondition_part1 = InTriggerDistanceToVehicle(self.other_actors[0],
                                                         self.ego_vehicles[0],
                                                         distance=20,
@@ -274,7 +268,7 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
         endcondition.add_child(endcondition_part2)
 
         # Build behavior tree
-        sequence = py_trees.composites.Sequence("Sequence Behavior")
+        sequence = py_trees.composites.Sequence("Sequence Behavior", memory=True)
         sequence.add_child(ActorTransformSetter(self.other_actors[0], self._first_actor_transform))
         sequence.add_child(ActorTransformSetter(self.other_actors[1], self._second_actor_transform))
         sequence.add_child(driving_to_next_intersection)

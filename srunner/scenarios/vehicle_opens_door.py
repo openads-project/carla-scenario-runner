@@ -10,12 +10,9 @@ Scenarios in which another (opposite) vehicle 'illegally' takes
 priority, e.g. by running a red traffic light.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, ScenarioTimeoutTest
 
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
@@ -24,10 +21,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestr
                                                                       ScenarioTimeout,
                                                                       Idle,
                                                                       OppositeActorFlow)
-from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (InTriggerDistanceToLocation,
-                                                                               InTimeToArrivalToLocation,
-                                                                               DriveDistance,
-                                                                               WaitUntilInFrontPosition)
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import InTriggerDistanceToLocation, InTimeToArrivalToLocation, WaitUntilInFrontPosition
 from srunner.scenarios.basic_scenario import BasicScenario
 
 from srunner.tools.background_manager import (
@@ -36,6 +30,7 @@ from srunner.tools.background_manager import (
     StopBackVehicles,
     StartBackVehicles,
 )
+from srunner.tools.actor_factory import request_new_actor
 
 
 def get_value_parameter(config, name, p_type, default):
@@ -60,14 +55,12 @@ class VehicleOpensDoorTwoWays(BasicScenario):
     This class holds everything required for a scenario in which another vehicle parked at the side lane
     opens the door, forcing the ego to lane change, invading the opposite lane
     """
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
 
         self.timeout = timeout
         self._min_trigger_dist = 10
@@ -90,7 +83,6 @@ class VehicleOpensDoorTwoWays(BasicScenario):
             "VehicleOpensDoorTwoWays",
             ego_vehicles,
             config,
-            world,
             debug_mode,
             criteria_enable=criteria_enable,
         )
@@ -145,7 +137,7 @@ class VehicleOpensDoorTwoWays(BasicScenario):
 
         self.parking_slots.append(self._parked_wp.transform.location)
 
-        self._parked_actor = CarlaDataProvider.request_new_actor(
+        self._parked_actor = request_new_actor(
             "*vehicle.*", self._parked_wp.transform, attribute_filter={'has_dynamic_doors': True, 'base_type': 'car'})
         if not self._parked_actor:
             raise ValueError("Couldn't spawn the parked vehicle")
@@ -167,21 +159,21 @@ class VehicleOpensDoorTwoWays(BasicScenario):
         if not reference_wp:
             raise ValueError("Couldnt find a left lane to spawn the opposite traffic")
 
-        root = py_trees.composites.Sequence(name="VehicleOpensDoorTwoWays")
+        root = py_trees.composites.Sequence(name="VehicleOpensDoorTwoWays", memory=True)
         if self.route_mode:
             total_dist = self._parked_distance + 20
             root.add_child(LeaveSpaceInFront(total_dist))
 
-        end_condition = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        end_condition = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="EndCondition")
         end_condition.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
         end_condition.add_child(WaitUntilInFrontPosition(self.ego_vehicles[0], self._end_wp.transform, False))
 
-        behavior = py_trees.composites.Sequence(name="Main Behavior")
+        behavior = py_trees.composites.Sequence(name="Main Behavior", memory=True)
 
         # Wait until ego is close to the adversary
         collision_location = self._front_wp.transform.location
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerOpenDoor")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TriggerOpenDoor")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._reaction_time, collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(

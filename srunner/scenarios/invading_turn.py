@@ -11,12 +11,9 @@ when a vehicle coming from the opposite lane invades the ego's lane,
 forcing the ego to move right to avoid a possible collision.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (InvadingActorFlow,
                                                                       ScenarioTimeout,
                                                                       ActorDestroy,
@@ -25,25 +22,8 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import Wa
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, ScenarioTimeoutTest
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.background_manager import RemoveRoadLane, ChangeOppositeBehavior, ReAddRoadLane
-
-
-def convert_dict_to_location(actor_dict):
-    """
-    Convert a JSON string to a Carla.Location
-    """
-    location = carla.Location(
-        x=float(actor_dict['x']),
-        y=float(actor_dict['y']),
-        z=float(actor_dict['z'])
-    )
-    return location
-
-
-def get_value_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return p_type(config.other_parameters[name]['value'])
-    else:
-        return default
+from srunner.tools.scenario_helper import get_value_parameter
+from srunner.tools.actor_factory import request_new_actor
 
 
 class InvadingTurn(BasicScenario):
@@ -55,18 +35,13 @@ class InvadingTurn(BasicScenario):
     This scenario is expected to take place on a road that has only one lane in each direction.
     """
 
-    def __init__(self, world, ego_vehicles, config, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
-
-        self._trigger_location = config.trigger_points[0].location
-        self._reference_waypoint = self._map.get_waypoint(
-            self._trigger_location)
 
         self._flow_frequency = 40 # m
         self._source_dist = 30 # Distance between source and end point
@@ -82,7 +57,6 @@ class InvadingTurn(BasicScenario):
         super().__init__("InvadingTurn",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -121,9 +95,9 @@ class InvadingTurn(BasicScenario):
             displacement = 0.8 * next_wp.lane_width / 2
             r_vec = next_wp.transform.get_right_vector()
             spawn_transform = next_wp.transform
-            spawn_transform.location += carla.Location(x=displacement * r_vec.x, y=displacement * r_vec.y, z=0.3)
+            spawn_transform.location += carla.Location(x=displacement * r_vec.x, y=displacement * r_vec.y)
 
-            cone = CarlaDataProvider.request_new_actor('*constructioncone*', spawn_transform)
+            cone = request_new_actor('*constructioncone*', spawn_transform)
             self.other_actors.append(cone)
 
             self._obstacle_transforms.append([cone, spawn_transform])
@@ -141,7 +115,7 @@ class InvadingTurn(BasicScenario):
         """
         The adversary vehicle will go to the target place while invading another lane.
         """
-        sequence = py_trees.composites.Sequence("InvadingTurn")
+        sequence = py_trees.composites.Sequence("InvadingTurn", memory=True)
 
         if self.route_mode:
             sequence.add_child(RemoveRoadLane(self._reference_waypoint))
@@ -149,7 +123,7 @@ class InvadingTurn(BasicScenario):
 
         sequence.add_child(BatchActorTransformSetter(self._obstacle_transforms))
 
-        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        main_behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="MainBehavior")
         main_behavior.add_child(InvadingActorFlow(
             self._source_wp, self._sink_wp, self.ego_vehicles[0], self._flow_frequency, offset=self._true_offset))
 

@@ -6,7 +6,7 @@
   <a href="https://github.com/openads-project/carla-scenario-runner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/openads-project/carla-scenario-runner"/></a>
   <br>
   <img src="https://img.shields.io/badge/Ubuntu-24.04-E95420"/>
-  <img src="https://img.shields.io/badge/CARLA-0.10.0-blueviolet"/>
+  <img src="https://img.shields.io/badge/CARLA-1.0.0-blueviolet"/>
   <img src="https://img.shields.io/badge/Python-3.12-blueviolet"/>
   <a href="https://www.ros.org"><img src="https://img.shields.io/badge/ROS 2-jazzy-22314e"/></a>
   <a href="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker.yml"><img src="https://github.com/openads-project/carla-scenario-runner/actions/workflows/docker.yml/badge.svg"/></a>
@@ -51,7 +51,9 @@ branch contains the latest fixes and features, and may be required to use the la
 
 It is important to also consider the release version that has to match the CARLA version.
 
-* [Version 0.9.16](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.16) and the 0.9.16 Branch: Compatible with [CARLA 0.9.16](https://github.com/carla-simulator/carla/tree/0.9.16)
+* [Version 1.0](https://github.com/carla-simulator/scenario_runner/releases/tag/v1.0) and the ue58-dev Branch: Compatible with [CARLA 1.0](https://github.com/carla-simulator/carla/releases/tag/1.0)
+* [Version 0.10.0](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.10.0) and the ue5-master Branch: Compatible with [CARLA 0.10.0](https://github.com/carla-simulator/carla/releases/tag/0.10.0)
+* [Version 0.9.16](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.16) and the 0.9.16 Branch: Compatible with [CARLA 0.9.16](https://github.com/carla-simulator/carla/releases/tag/0.9.16)
 * [Version 0.9.15](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.15) and the 0.9.15 Branch: Compatible with [CARLA 0.9.15](https://github.com/carla-simulator/carla/releases/tag/0.9.15)
 * [Version 0.9.13](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.13) and the 0.9.13 Branch: Compatible with [CARLA 0.9.13](https://github.com/carla-simulator/carla/releases/tag/0.9.13) and [CARLA 0.9.14](https://github.com/carla-simulator/carla/releases/tag/0.9.14)
 * [Version 0.9.12](https://github.com/carla-simulator/scenario_runner/releases/tag/v0.9.12) and the 0.9.12 Branch: Compatible with [CARLA 0.9.12](https://github.com/carla-simulator/carla/releases/tag/0.9.12)

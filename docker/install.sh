@@ -11,10 +11,8 @@ CARLA_SETUP_SCRIPT="${CARLA_SETUP_SCRIPT:-/opt/carla/setup.bash}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 artifacts_dir="$(mktemp -d)"
-requirements_raw="$(mktemp)"
-requirements_deduped="$(mktemp)"
 cleanup() {
-    rm -rf "$artifacts_dir" "$requirements_raw" "$requirements_deduped"
+    rm -rf "$artifacts_dir"
 }
 trap cleanup EXIT
 
@@ -23,14 +21,22 @@ trap cleanup EXIT
 
 # Download and install CARLA PythonAPI artifacts.
 mkdir -p "$CARLA_PATH"
-curl --location --output "$artifacts_dir/artifacts.tar.gz" "$CARLA_ARTIFACTS_URL"
-tar -xzf "$artifacts_dir/artifacts.tar.gz" -C "$artifacts_dir"
+curl --fail --location --output "$artifacts_dir/download" "$CARLA_ARTIFACTS_URL"
+# A release asset is PythonAPI.tar.gz itself; a GitHub Actions artifact
+# downloads as a zip around it.
+if [[ "$(head -c 2 "$artifacts_dir/download")" == "PK" ]]; then
+    unzip -q "$artifacts_dir/download" PythonAPI.tar.gz -d "$artifacts_dir"
+else
+    mv "$artifacts_dir/download" "$artifacts_dir/PythonAPI.tar.gz"
+fi
+tar -xzf "$artifacts_dir/PythonAPI.tar.gz" -C "$artifacts_dir"
 mv "$artifacts_dir/PythonAPI" "$CARLA_API_PATH"
 
-# Install PythonAPI requirements, keeping the version of the first occurrence.
-find "$CARLA_API_PATH" -type f -name "requirements.txt" -print0 | xargs -0 cat > "$requirements_raw"
-awk -F '==' '{print $1}' "$requirements_raw" | awk '!visited[$1]++' > "$requirements_deduped"
-"$PYTHON_BIN" -m pip install -r "$requirements_deduped"
+# Install the requirements of the carla package and its agents, which Scenario
+# Runner imports, plus pygame for manual_control.py and the human agent. The
+# requirements of the PythonAPI examples and tools are left out: they pull in
+# whole AV stacks and pin packages against the Scenario Runner requirements.
+"$PYTHON_BIN" -m pip install -r "$CARLA_API_PATH/carla/requirements.txt" pygame
 
 # Install the CARLA wheel that matches the current Python minor version.
 pyver=$("$PYTHON_BIN" -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")

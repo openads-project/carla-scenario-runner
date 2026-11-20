@@ -9,20 +9,20 @@
 This module provide BasicScenario, the basic class of all the scenarios.
 """
 
-from __future__ import print_function
-
-import operator
 import py_trees
 
 import carla
 
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (WaitForBlackboardVariable,
                                                                                InTimeToArrivalToLocation)
-from srunner.scenariomanager.scenarioatomics.atomic_behaviors import WaitForever
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import AddActor, WaitForever
 from srunner.scenariomanager.timer import TimeOut
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import UpdateAllActorControls
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import Criterion
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.blackboard import get_blackboard, set_blackboard
+from srunner.tools.actor_factory import request_new_actors
+from srunner.tools.actor_state import destroy_actors
 
 
 class BasicScenario(object):
@@ -31,7 +31,7 @@ class BasicScenario(object):
     Base class for user-defined scenario
     """
 
-    def __init__(self, name, ego_vehicles, config, world,
+    def __init__(self, name, ego_vehicles, config,
                  debug_mode=False, terminate_on_failure=False, criteria_enable=False):
         """
         Setup all relevant parameters and create scenario
@@ -42,7 +42,6 @@ class BasicScenario(object):
         self.other_actors = []
         self.parking_slots = []
         self.config = config
-        self.world = world
         self.debug_mode = debug_mode
         self.terminate_on_failure = terminate_on_failure
         self.criteria_enable = criteria_enable
@@ -50,6 +49,15 @@ class BasicScenario(object):
         self.route_mode = bool(config.route)
         self.behavior_tree = None
         self.criteria_tree = None
+
+        # Where the scenario is anchored on the map. A config carries no trigger
+        # point when the scenario places itself, as a route or an OpenSCENARIO file does
+        if config.trigger_points and config.trigger_points[0]:
+            self._trigger_location = config.trigger_points[0].location
+            self._reference_waypoint = self._map.get_waypoint(self._trigger_location)
+        else:
+            self._trigger_location = None
+            self._reference_waypoint = None
 
         # If no timeout was provided, set it to 60 seconds
         if not hasattr(self, 'timeout'):
@@ -59,22 +67,17 @@ class BasicScenario(object):
 
         if not self.route_mode:
             # Only init env for route mode, avoid duplicate initialization during runtime
-            self._initialize_environment(world)
+            self._initialize_environment()
 
         self._initialize_actors(config)
 
-        if CarlaDataProvider.is_runtime_init_mode():
-            world.wait_for_tick()
-        elif CarlaDataProvider.is_sync_mode():
-            world.tick()
-        else:
-            world.wait_for_tick()
+        SimulationData.tick_world()
 
         # Main scenario tree
-        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         # Add a trigger and end condition to the behavior to ensure it is only activated when it is relevant
-        self.behavior_tree = py_trees.composites.Sequence()
+        self.behavior_tree = py_trees.composites.Sequence(name="BehaviorTree", memory=True)
 
         trigger_behavior = self._setup_scenario_trigger(config)
         if trigger_behavior:
@@ -116,15 +119,20 @@ class BasicScenario(object):
                     criterion.terminate_on_failure = terminate_on_failure
 
                 self.criteria_tree = py_trees.composites.Parallel(name="Test Criteria",
-                                                                  policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                                                                  policy=py_trees.common.ParallelPolicy.SuccessOnAll())
                 self.criteria_tree.add_children(criteria)
-                self.criteria_tree.setup(timeout=1)
+                self.criteria_tree.setup()
 
             else:
                 raise ValueError("WARNING: Scenario {} couldn't be setup, make sure the criteria is either "
                                  "a list or a py_trees.composites.Composite".format(self.name))
 
-            self.scenario_tree.add_child(self.criteria_tree)
+            if self.criteria_tree.children:
+                self.scenario_tree.add_child(self.criteria_tree)
+            else:
+                # OpenADS: py_trees 2.x lets an empty composite succeed at once, which would end the
+                # SuccessOnOne scenario tree on its first tick for scenarios without criteria.
+                self.criteria_tree = None
 
         # Create the timeout behavior
         self.timeout_node = self._create_timeout_behavior()
@@ -134,20 +142,42 @@ class BasicScenario(object):
         # Add other nodes
         self.scenario_tree.add_child(UpdateAllActorControls())
 
-        self.scenario_tree.setup(timeout=1)
+        self.scenario_tree.setup()
 
-    def _initialize_environment(self, world):
+    # The simulator connection is global, so every scenario reads the same world,
+    # map and route planner rather than each storing its own copy.
+    @property
+    def world(self):
+        """The CARLA world this scenario runs in"""
+        return SimulationData.get_world()
+
+    @property
+    def _world(self):
+        """The CARLA world this scenario runs in"""
+        return SimulationData.get_world()
+
+    @property
+    def _map(self):
+        """The map of the world this scenario runs in"""
+        return SimulationData.get_map()
+
+    @property
+    def _grp(self):
+        """The global route planner of the world this scenario runs in"""
+        return SimulationData.get_global_route_planner()
+
+    def _initialize_environment(self):
         """
         Default initialization of weather and road friction.
         Override this method in child class to provide custom initialization.
         """
 
         # Set the appropriate weather conditions
-        world.set_weather(self.config.weather)
+        self._world.set_weather(self.config.weather)
 
         # Set the appropriate road friction
         if self.config.friction is not None:
-            friction_bp = world.get_blueprint_library().find('static.trigger.friction')
+            friction_bp = self._world.get_blueprint_library().find('static.trigger.friction')
             extent = carla.Location(1000000.0, 1000000.0, 1000000.0)
             friction_bp.set_attribute('friction', str(self.config.friction))
             friction_bp.set_attribute('extent_x', str(extent.x))
@@ -157,7 +187,7 @@ class BasicScenario(object):
             # Spawn Trigger Friction
             transform = carla.Transform()
             transform.location = carla.Location(-10000.0, -10000.0, 0.0)
-            world.spawn_actor(friction_bp, transform)
+            self._world.spawn_actor(friction_bp, transform)
 
     def _initialize_actors(self, config):
         """
@@ -165,21 +195,13 @@ class BasicScenario(object):
         Override this method in child class to provide custom initialization.
         """
         if config.other_actors:
-            new_actors = CarlaDataProvider.request_new_actors(config.other_actors)
+            new_actors = request_new_actors(config.other_actors)
             if not new_actors:
                 raise Exception("Error: Unable to add actors")
 
             for new_actor in new_actors:
                 self.other_actors.append(new_actor)
                 
-    def _destroy_other_actors(self):
-        """
-        Remove all actors upon deletion
-        """
-        for actor in self.other_actors:
-            if CarlaDataProvider.remove_actor_by_id(actor.id) is None:
-                actor.destroy()
-
     def _setup_scenario_trigger(self, config):
         """
         This function creates a trigger maneuver, that has to be finished before the real scenario starts.
@@ -210,9 +232,10 @@ class BasicScenario(object):
             return None
 
         # Scenario is part of a route.
-        end_sequence = py_trees.composites.Sequence()
+        end_sequence = py_trees.composites.Sequence(name="EndSequence", memory=True)
         name = "Reset Blackboard Variable: {} ".format(config.route_var_name)
-        end_sequence.add_child(py_trees.blackboard.SetBlackboardVariable(name, config.route_var_name, False))
+        end_sequence.add_child(py_trees.behaviours.SetBlackboardVariable(
+            name, config.route_var_name, False, overwrite=True))
         end_sequence.add_child(WaitForever())  # scenario can't stop the route
 
         return end_sequence
@@ -316,27 +339,29 @@ class BasicScenario(object):
 
         # Cleanup all instantiated controllers
         actor_dict = {}
-        try:
-            check_actors = operator.attrgetter("ActorsWithController")
-            actor_dict = check_actors(py_trees.blackboard.Blackboard())
-        except AttributeError:
-            pass
+        actor_dict = get_blackboard("ActorsWithController", {})
         for actor_id in actor_dict:
             actor_dict[actor_id].reset()
-        py_trees.blackboard.Blackboard().set("ActorsWithController", {}, overwrite=True)
+        set_blackboard("ActorsWithController", {})
 
     def remove_all_actors(self):
         """
-        Remove all actors
+        Destroy the actors this scenario created
         """
+        # hasattr, as __del__ also reaches a scenario that failed half way through __init__
         if not hasattr(self, 'other_actors'):
             return
-        for i, _ in enumerate(self.other_actors):
-            if self.other_actors[i] is not None:
-                if CarlaDataProvider.actor_id_exists(self.other_actors[i].id):
-                    CarlaDataProvider.remove_actor_by_id(self.other_actors[i].id)
-                self.other_actors[i] = None
+        destroy_actors(self.other_actors)
         self.other_actors = []
+
+        # OpenADS: actors spawned while the scenario runs (AddEntityAction) are not part of
+        # other_actors. Left alive, a later scenario would resolve its entities to them by role name.
+        scenario_tree = getattr(self, 'scenario_tree', None)
+        if scenario_tree is not None:
+            for node in scenario_tree.iterate():
+                if isinstance(node, AddActor):
+                    destroy_actors(node.spawned_actors)
+                    node.spawned_actors = []
 
     def get_parking_slots(self):
         """

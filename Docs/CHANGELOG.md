@@ -1,4 +1,6 @@
 ## Table of Contents
+* [CARLA ScenarioRunner 1.0](#carla-scenariorunner-10)
+* [CARLA ScenarioRunner 0.10.0](#carla-scenariorunner-0100)
 * [CARLA ScenarioRunner 0.9.16](#carla-scenariorunner-0916)
 * [CARLA ScenarioRunner 0.9.15](#carla-scenariorunner-0915)
 * [CARLA ScenarioRunner 0.9.13](#carla-scenariorunner-0913)
@@ -12,6 +14,36 @@
 * [CARLA ScenarioRunner 0.9.5.1](#carla-scenariorunner-0951)
 * [CARLA ScenarioRunner 0.9.5](#carla-scenariorunner-095)
 * [CARLA ScenarioRunner 0.9.2](#carla-scenariorunner-092)
+
+## CARLA ScenarioRunner 1.0
+
+### :rocket: New Features
+* Scenarios no longer take `world`. `BasicScenario` provides the world, the map and the global route planner.
+* OpenSCENARIO 2.0 support is now optional. Every other mode runs without the antlr4 runtime installed.
+* `ConstructionObstacle`, `ConstructionObstacleTwoWays` and `ParkingExit` take their traffic from the config, running an actor flow when given `start_actor_flow` and `end_actor_flow`, and slowing the background traffic down when not.
+
+### :bug: Bug Fixes
+* `npc_agent` follows the global plan it is given instead of re-tracing it point by point, which could detour inside a junction and leave the route.
+* `manual_control.py` runs on CARLA UE5. It no longer sets the RGB camera's removed `gamma` attribute, and it tracks the ego through the world snapshot.
+* Updated the blueprint ids of the example and route files to ones that exist in CARLA UE5.
+* `BasicAgentBehavior`, `ConstantVelocityAgentBehavior` and `AdaptiveConstantVelocityAgentBehavior` no longer raise when their actor is already destroyed on termination. A scenario that destroys the actor before the tree stops, such as `StaticCutIn`, ended with "trying to operate on a destroyed actor" and no results.
+
+### :ghost: Maintenance
+* Requires CARLA 1.0 and py_trees 2.6.0, up from CARLA 0.9.14 and py_trees 0.8.3. The `six` dependency and the remaining Python 2 compatibility code are gone.
+* Split `CarlaDataProvider` into smaller pieces: `SimulationData` (`srunner/scenariomanager/simulation_data.py`) for the client, world, map, route planner, spawn points and random state, and `srunner/tools/actor_factory.py`, `actor_state.py`, `map_utils.py` and `traffic_light_utils.py` for the rest. Update any import of `srunner.scenariomanager.carla_data_provider`.
+* Actor state is no longer cached each tick. Read it from the Python API with `actor.get_location()` and `actor.get_transform()`, and `get_ground_speed(actor)` for the 2D speed. The global actor pool is gone, so every actor is destroyed by whoever created it.
+* Towns are resolved against the maps available on the server, as CARLA UE5 requires exact names, and 0.9.x blueprint ids are translated to their UE5 equivalents.
+* Scenario classes are resolved through `srunner/tools/scenario_class_loader.py`, so `--scenario` and `--route` find the same ones and `--additionalScenario` is registered once.
+* Regenerated the OpenSCENARIO 2.0 parser with ANTLR 4.9.3, so its runtime matches the 4.9.* pin of common packages such as omegaconf.
+* Removed the `ChangeLane`, `CutIn` and `HighwayCutIn` example configs, and aligned `ObjectCrossing`'s dumpster blocker along the kerb.
+
+## CARLA ScenarioRunner 0.10.0
+
+### :rocket: New Features
+* Added Scenic examples to the repo, and updated [the ones in the Scenic repo](https://github.com/BerkeleyLearnVerify/Scenic/tree/main/examples/carla/Carla_Challenge) to match the release.
+
+### :ghost: Maintenance
+* Updated the scenarios to match the limitations of CARLA 0.10, moving them to Town10HD_Opt and updating the blueprints to the available ones.
 
 ## CARLA ScenarioRunner 0.9.16
 

@@ -6,12 +6,9 @@
 Pedestrians crossing through the middle of the lane.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
                                                                       KeepVelocity,
                                                                       WaitForever,
@@ -25,18 +22,10 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
 from srunner.scenarios.basic_scenario import BasicScenario
 
 from srunner.tools.background_manager import HandleJunctionScenario
+from srunner.scenariomanager.simulation_data import SimulationData
+from srunner.tools.actor_factory import request_new_actor
+from srunner.tools.actor_state import destroy_actor
 
-
-def convert_dict_to_location(actor_dict):
-    """
-    Convert a JSON string to a Carla.Location
-    """
-    location = carla.Location(
-        x=float(actor_dict['x']),
-        y=float(actor_dict['y']),
-        z=float(actor_dict['z'])
-    )
-    return location
 
 
 class PedestrianCrossing(BasicScenario):
@@ -51,14 +40,11 @@ class PedestrianCrossing(BasicScenario):
     Notice that the initial pedestrian will walk from the start of the junction ahead to end_walker_flow_1.
     """
 
-    def __init__(self, world, ego_vehicles, config, debug_mode=False, criteria_enable=True, timeout=60):
+    def __init__(self, ego_vehicles, config, debug_mode=False, criteria_enable=True, timeout=60):
         """
         Setup all relevant parameters and create scenario
         """
-        self._wmap = CarlaDataProvider.get_map()
-        self._trigger_location = config.trigger_points[0].location
-        self._reference_waypoint = self._wmap.get_waypoint(self._trigger_location)
-        self._rng = CarlaDataProvider.get_random_seed()
+        self._rng = SimulationData.get_rng()
 
         self._adversary_speed = 1.3  # Speed of the adversary [m/s]
         self._reaction_time = 3.5  # Time the agent has to react to avoid the collision [s]
@@ -79,7 +65,6 @@ class PedestrianCrossing(BasicScenario):
         super().__init__("PedestrianCrossing",
                           ego_vehicles,
                           config,
-                          world,
                           debug_mode,
                           criteria_enable=criteria_enable)
 
@@ -128,9 +113,9 @@ class PedestrianCrossing(BasicScenario):
         # Spawn the walkers
         for _, walker_data in enumerate(self._walker_data):
             spawn_transform = self._get_walker_transform(start_wp, walker_data)
-            walker = CarlaDataProvider.request_new_actor('walker.*', spawn_transform)
+            walker = request_new_actor('walker.*', spawn_transform)
             if walker is None:
-                self._destroy_other_actors()
+                self.remove_all_actors()
                 raise ValueError("Failed to spawn an adversary")
 
             walker.set_location(spawn_transform.location + carla.Location(z=-200))
@@ -153,7 +138,7 @@ class PedestrianCrossing(BasicScenario):
         the cyclist starts crossing the road once the condition meets,
         then after 60 seconds, a timeout stops the scenario
         """
-        sequence = py_trees.composites.Sequence(name="PedestrianCrossing")
+        sequence = py_trees.composites.Sequence(name="PedestrianCrossing", memory=True)
         if self.route_mode:
             sequence.add_child(HandleJunctionScenario(
                 clear_junction=False,
@@ -171,7 +156,7 @@ class PedestrianCrossing(BasicScenario):
 
         # Wait until ego is close to the adversary
         trigger_adversary = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="TriggerAdversaryStart")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="TriggerAdversaryStart")
         trigger_adversary.add_child(InTimeToArrivalToLocation(
             self.ego_vehicles[0], self._reaction_time, collision_location))
         trigger_adversary.add_child(InTriggerDistanceToLocation(
@@ -180,10 +165,10 @@ class PedestrianCrossing(BasicScenario):
 
         # Move the walkers
         main_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="WalkerMovement")
+            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="WalkerMovement")
 
         for walker_actor, walker_data in zip(self.other_actors, self._walker_data):
-            walker_sequence = py_trees.composites.Sequence(name="WalkerCrossing")
+            walker_sequence = py_trees.composites.Sequence(name="WalkerCrossing", memory=True)
             walker_sequence.add_child(Idle(walker_data['idle_time']))
             walker_sequence.add_child(KeepVelocity(
                 walker_actor, walker_data['speed'], False, walker_data['duration'], walker_data['distance']))
@@ -219,10 +204,10 @@ class PedestrianCrossing(BasicScenario):
     def _replace_walker(self, walker):
         """As the adversary is probably, replace it with another one"""
         type_id = walker.type_id
-        CarlaDataProvider.remove_actor_by_id(walker.id)
+        destroy_actor(walker)
         spawn_transform = self.ego_vehicles[0].get_transform()
         spawn_transform.location.z -= 50
-        walker = CarlaDataProvider.request_new_actor(type_id, spawn_transform)
+        walker = request_new_actor(type_id, spawn_transform)
         if not walker:
             raise ValueError("Couldn't spawn the walker substitute")
         walker.set_simulate_physics(False)
@@ -237,7 +222,7 @@ class PedestrianCrossing(BasicScenario):
             return trigger_tree
 
         parallel = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="ScenarioTrigger")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="ScenarioTrigger")
 
         for _, walker in enumerate(reversed(self.other_actors)):
             parallel.add_child(MovePedestrianWithEgo(self.ego_vehicles[0], walker, 100))

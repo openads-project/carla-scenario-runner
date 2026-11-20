@@ -10,12 +10,9 @@ Scenarios in which another (opposite) vehicle 'illegally' takes
 priority, e.g. by running a red traffic light.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
                                                                       ActorTransformSetter,
                                                                       SyncArrivalWithAgent,
@@ -25,18 +22,9 @@ from srunner.scenarios.basic_scenario import BasicScenario
 
 from srunner.tools.background_manager import HandleJunctionScenario
 
-from srunner.tools.scenario_helper import generate_target_waypoint
+from srunner.tools.scenario_helper import generate_target_waypoint, convert_dict_to_location
+from srunner.tools.actor_factory import request_new_actor
 
-def convert_dict_to_location(actor_dict):
-    """
-    Convert a JSON string to a Carla.Location
-    """
-    location = carla.Location(
-        x=float(actor_dict['x']),
-        y=float(actor_dict['y']),
-        z=float(actor_dict['z'])
-    )
-    return location
 
 class HighwayCutIn(BasicScenario):
     """
@@ -45,14 +33,12 @@ class HighwayCutIn(BasicScenario):
     ambulances or firetrucks.
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
 
         self._same_lane_time = 0.3
@@ -67,7 +53,6 @@ class HighwayCutIn(BasicScenario):
         super().__init__("HighwayCutIn",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -78,7 +63,7 @@ class HighwayCutIn(BasicScenario):
         self._other_waypoint = self._map.get_waypoint(self._start_location)
         self._other_transform = self._other_waypoint.transform
 
-        self._cut_in_vehicle = CarlaDataProvider.request_new_actor(
+        self._cut_in_vehicle = request_new_actor(
             'vehicle.*', self._other_transform, rolename='scenario',
             attribute_filter={'base_type': 'car', 'has_lights': True}
         )
@@ -94,7 +79,7 @@ class HighwayCutIn(BasicScenario):
         Hero vehicle is entering a junction in an urban area, at a signalized intersection,
         while another actor runs a red lift, forcing the ego to break.
         """
-        behavior = py_trees.composites.Sequence("HighwayCutIn")
+        behavior = py_trees.composites.Sequence("HighwayCutIn", memory=True)
 
         if self.route_mode:
             behavior.add_child(HandleJunctionScenario(

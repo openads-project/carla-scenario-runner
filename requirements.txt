@@ -1,4 +1,4 @@
-py-trees==0.8.3 # newest version (2.2.3) is not compatible
+py-trees==2.6.0
 numpy==1.26.4; python_version >= '3.0'
 networkx==3.4.2
 Shapely==2.1.1
@@ -8,6 +8,8 @@ ephem==4.2
 tabulate==0.9.0
 opencv-python==4.7.0.72
 matplotlib==3.10.6
-simple-watchdog-timer==0.1.1
-antlr4-python3-runtime==4.10
 graphviz==0.21
+# Required for OpenSCENARIO 2.0 (--openscenario2) support; the OSC2 parser is
+# generated with ANTLR 4.9.3, matching the 4.9.* pin of common packages such
+# as omegaconf. Every other scenario_runner mode works without it.
+antlr4-python3-runtime==4.9.3

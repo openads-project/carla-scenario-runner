@@ -9,12 +9,9 @@
 Scenario in which the ego has to yield its lane to emergency vehicle.
 """
 
-from __future__ import print_function
-
 import py_trees
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       ActorDestroy,
                                                                       Idle,
@@ -25,6 +22,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (I
                                                                                DriveDistance)
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.background_manager import RemoveRoadLane, ReAddRoadLane
+from srunner.tools.actor_factory import request_new_actor
 
 
 class YieldToEmergencyVehicle(BasicScenario):
@@ -37,14 +35,12 @@ class YieldToEmergencyVehicle(BasicScenario):
     There should be at least two lanes on the highway.
     """
 
-    def __init__(self, world, ego_vehicles, config, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
         self._ev_idle_time = 10  # seconds
 
@@ -67,15 +63,12 @@ class YieldToEmergencyVehicle(BasicScenario):
             'base_min_distance': 1, 'distance_ratio': 0.2
             }
 
-        self._trigger_location = config.trigger_points[0].location
-        self._reference_waypoint = self._map.get_waypoint(self._trigger_location)
 
         self._end_distance = 50
 
         super().__init__("YieldToEmergencyVehicle",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -90,7 +83,7 @@ class YieldToEmergencyVehicle(BasicScenario):
 
         self._ev_start_transform = ev_points[0].transform
 
-        actor = CarlaDataProvider.request_new_actor(
+        actor = request_new_actor(
             "vehicle.*.*",
             self._ev_start_transform,
             attribute_filter={"special_type": "emergency"},
@@ -128,7 +121,7 @@ class YieldToEmergencyVehicle(BasicScenario):
                 - DriveDistance
         - ReAddRoadLane
         """
-        sequence = py_trees.composites.Sequence(name="YieldToEmergencyVehicle")
+        sequence = py_trees.composites.Sequence(name="YieldToEmergencyVehicle", memory=True)
 
         if self.route_mode:
             sequence.add_child(RemoveRoadLane(self._reference_waypoint))
@@ -138,15 +131,15 @@ class YieldToEmergencyVehicle(BasicScenario):
         )
 
         main_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE
-        )
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne()
+        , name="MainBehavior")
 
-        end_condition_1 = py_trees.composites.Sequence()
+        end_condition_1 = py_trees.composites.Sequence(name="EndCondition1", memory=True)
         end_condition_1.add_child(InTriggerDistanceToVehicle(
             self.ego_vehicles[0], self.other_actors[0], self._trigger_distance))
         end_condition_1.add_child(Idle(self._ev_idle_time))
 
-        end_condition_2 = py_trees.composites.Sequence()
+        end_condition_2 = py_trees.composites.Sequence(name="EndCondition2", memory=True)
         end_condition_2.add_child(
             WaitUntilInFront(self.other_actors[0], self.ego_vehicles[0])
         )

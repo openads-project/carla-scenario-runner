@@ -9,13 +9,10 @@ Collection of traffic scenarios where the ego vehicle (hero)
 is making a right turn
 """
 
-from __future__ import print_function
-
 import py_trees
 
 import carla
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import ActorFlow, TrafficLightFreezer, ScenarioTimeout
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, ScenarioTimeoutTest
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import WaitEndIntersection, DriveDistance
@@ -24,25 +21,12 @@ from srunner.tools.scenario_helper import (generate_target_waypoint,
                                            get_junction_topology,
                                            filter_junction_wp_direction,
                                            get_same_dir_lanes,
-                                           get_closest_traffic_light)
+                                           get_closest_traffic_light,
+                                           get_value_parameter,
+                                           get_interval_parameter)
 
 from srunner.tools.background_manager import HandleJunctionScenario
-
-
-def get_value_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return p_type(config.other_parameters[name]['value'])
-    else:
-        return default
-
-def get_interval_parameter(config, name, p_type, default):
-    if name in config.other_parameters:
-        return [
-            p_type(config.other_parameters[name]['from']),
-            p_type(config.other_parameters[name]['to'])
-        ]
-    else:
-        return default
+from srunner.scenariomanager.simulation_data import SimulationData
 
 
 class JunctionRightTurn(BasicScenario):
@@ -51,13 +35,11 @@ class JunctionRightTurn(BasicScenario):
     colliding with vehicles coming from its left
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=80):
         """
         Setup all relevant parameters and create scenario
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
 
         self._direction = 'left'
@@ -79,7 +61,6 @@ class JunctionRightTurn(BasicScenario):
         super().__init__("JunctionRightTurn",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -88,7 +69,7 @@ class JunctionRightTurn(BasicScenario):
         Custom initialization
         """
         ego_location = config.trigger_points[0].location
-        self._ego_wp = CarlaDataProvider.get_map().get_waypoint(ego_location)
+        self._ego_wp = SimulationData.get_map().get_waypoint(ego_location)
 
         # Get the junction
         starting_wp = self._ego_wp
@@ -162,9 +143,9 @@ class SignalizedJunctionRightTurn(JunctionRightTurn):
     Signalized version of JunctionRightTurn
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=80):
-        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+        super().__init__(ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
 
     def _initialize_actors(self, config):
         """
@@ -193,7 +174,7 @@ class SignalizedJunctionRightTurn(JunctionRightTurn):
         while other actor coming straight from the left. The ego has to avoid colliding with it
         """
 
-        sequence = py_trees.composites.Sequence(name="JunctionRightTurn")
+        sequence = py_trees.composites.Sequence(name="JunctionRightTurn", memory=True)
         if self.route_mode:
             sequence.add_child(HandleJunctionScenario(
                 clear_junction=True,
@@ -204,8 +185,8 @@ class SignalizedJunctionRightTurn(JunctionRightTurn):
                 extend_road_exit=self._sink_dist + 20
             ))
 
-        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
-        end_condition = py_trees.composites.Sequence()
+        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Root")
+        end_condition = py_trees.composites.Sequence(name="EndCondition", memory=True)
         end_condition.add_child(WaitEndIntersection(self.ego_vehicles[0]))
         end_condition.add_child(DriveDistance(self.ego_vehicles[0], self._end_distance))
         root.add_child(end_condition)
@@ -213,7 +194,7 @@ class SignalizedJunctionRightTurn(JunctionRightTurn):
             self._source_wp, self._sink_wp, self._source_dist_interval, 2, self._flow_speed, initial_actors=True))
         root.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
 
-        tl_freezer_sequence = py_trees.composites.Sequence("Traffic Light Behavior")
+        tl_freezer_sequence = py_trees.composites.Sequence("Traffic Light Behavior", memory=True)
         tl_freezer_sequence.add_child(TrafficLightFreezer(self._init_tl_dict, duration=self._green_light_delay))
         tl_freezer_sequence.add_child(TrafficLightFreezer(self._flow_tl_dict))
         root.add_child(tl_freezer_sequence)
@@ -227,16 +208,16 @@ class NonSignalizedJunctionRightTurn(JunctionRightTurn):
     Non signalized version of JunctionRightTurn
     """
 
-    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=80):
-        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+        super().__init__(ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
 
     def _create_behavior(self):
         """
         Hero vehicle is turning right in an urban area, at a signalized intersection,
         while other actor coming straight from the left. The ego has to avoid colliding with it
         """
-        sequence = py_trees.composites.Sequence(name="JunctionRightTurn")
+        sequence = py_trees.composites.Sequence(name="JunctionRightTurn", memory=True)
         if self.route_mode:
             sequence.add_child(HandleJunctionScenario(
                 clear_junction=True,
@@ -247,8 +228,8 @@ class NonSignalizedJunctionRightTurn(JunctionRightTurn):
                 extend_road_exit=self._sink_dist + 20
             ))
 
-        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
-        end_condition = py_trees.composites.Sequence()
+        root = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Root")
+        end_condition = py_trees.composites.Sequence(name="EndCondition", memory=True)
         end_condition.add_child(WaitEndIntersection(self.ego_vehicles[0]))
         end_condition.add_child(DriveDistance(self.ego_vehicles[0], self._end_distance))
         root.add_child(end_condition)

@@ -9,11 +9,8 @@
 Scenario with low visibility, the ego performs a turn only to find out that the end is blocked by another vehicle.
 """
 
-from __future__ import print_function
-
 import carla
 import py_trees
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestroy,
                                                                       Idle,
@@ -26,19 +23,8 @@ from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import In
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.background_manager import HandleJunctionScenario
 
-from srunner.tools.scenario_helper import generate_target_waypoint_in_route
-
-
-def convert_dict_to_location(actor_dict):
-    """
-    Convert a JSON string to a Carla.Location
-    """
-    location = carla.Location(
-        x=float(actor_dict['x']),
-        y=float(actor_dict['y']),
-        z=float(actor_dict['z'])
-    )
-    return location
+from srunner.tools.scenario_helper import generate_target_waypoint, generate_target_waypoint_in_route, get_value_parameter
+from srunner.tools.actor_factory import request_new_actor
 
 
 class BlockedIntersection(BasicScenario):
@@ -47,18 +33,14 @@ class BlockedIntersection(BasicScenario):
     the ego performs a turn only to find out that the end is blocked by another vehicle.
     """
 
-    def __init__(self, world, ego_vehicles, config, debug_mode=False, criteria_enable=True,
+    def __init__(self, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=180):
         """
         Setup all relevant parameters and create scenario
         and instantiate scenario manager
         """
-        self._world = world
-        self._map = CarlaDataProvider.get_map()
         self.timeout = timeout
 
-        self._trigger_location = config.trigger_points[0].location
-        self._reference_waypoint = self._map.get_waypoint(self._trigger_location)
 
         self._blocker_distance = 5
         self._trigger_distance = 13
@@ -71,7 +53,6 @@ class BlockedIntersection(BasicScenario):
         super().__init__("BlockedIntersection",
                          ego_vehicles,
                          config,
-                         world,
                          debug_mode,
                          criteria_enable=criteria_enable)
 
@@ -79,13 +60,22 @@ class BlockedIntersection(BasicScenario):
         """
         Custom initialization
         """
-        waypoint = generate_target_waypoint_in_route(self._reference_waypoint, config.route)
+        direction = get_value_parameter(config, 'direction', str, 'right')
+        if self.route_mode:
+            waypoint = generate_target_waypoint_in_route(self._reference_waypoint, config.route)
+        elif direction == 'right':
+            waypoint = generate_target_waypoint(self._reference_waypoint, 1)
+        elif direction == 'left':
+            waypoint = generate_target_waypoint(self._reference_waypoint, -1)
+        else:
+            raise ValueError(f"'direction' must be either 'right' or 'left' but {self._direction} was given")
+
         waypoint = waypoint.next(self._blocker_distance)[0]
 
         self._blocker_transform = waypoint.transform
 
         # Spawn the blocker vehicle
-        blocker = CarlaDataProvider.request_new_actor(
+        blocker = request_new_actor(
             "vehicle.*.*", self._blocker_transform,
             attribute_filter={'base_type': 'car', 'has_lights': True, 'special_type': ''}
         )
@@ -104,7 +94,7 @@ class BlockedIntersection(BasicScenario):
         """
         Just wait for a while after the ego closes in on the blocker, then remove it.
         """
-        sequence = py_trees.composites.Sequence(name="BlockedIntersection")
+        sequence = py_trees.composites.Sequence(name="BlockedIntersection", memory=True)
 
         if self.route_mode:
             sequence.add_child(HandleJunctionScenario(
@@ -117,10 +107,10 @@ class BlockedIntersection(BasicScenario):
             ))
         # Ego go behind the blocker
         main_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="MainBehavior")
         main_behavior.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
 
-        behavior = py_trees.composites.Sequence(name="Approach and Wait")
+        behavior = py_trees.composites.Sequence(name="Approach and Wait", memory=True)
         behavior.add_child(ActorTransformSetter(self.other_actors[0], self._blocker_transform, True))
         behavior.add_child(HandBrakeVehicle(self.other_actors[0], 1))
         behavior.add_child(InTriggerDistanceToVehicle(
