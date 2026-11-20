@@ -96,8 +96,9 @@ class ScenarioRunner(object):
 
     finished = False
 
-    # OpenADS: sensors that existed before the scenario started belong to other clients
-    preexisting_sensor_ids = set()
+    # OpenADS: sensors that existed before the scenario started belong to other clients.
+    # None until the snapshot is taken, as nothing of the scenario can have spawned a sensor before.
+    preexisting_sensor_ids = None
 
     additional_scenario_module = None
 
@@ -214,9 +215,13 @@ class ScenarioRunner(object):
         # Before the egos go, or their sensors are already gone with them and this fails.
         # OpenADS: only sensors of this scenario, so that the sensors of an ego vehicle spawned by
         # another client (waitForEgo) and of background traffic survive for the next scenario.
-        if self.world is not None:
+        # A scenario that failed before the snapshot has no sensors to remove. With waitForEgo, the
+        # ego is not ours: the sensors we attach to it (agent, criteria) are destroyed by their creators.
+        if self.world is not None and self.preexisting_sensor_ids is not None:
             try:
-                own_actor_ids = {actor.id for actor in self.ego_vehicles if actor is not None}
+                own_actor_ids = set()
+                if not self._args.waitForEgo:
+                    own_actor_ids |= {actor.id for actor in self.ego_vehicles if actor is not None}
                 if self.manager and self.manager.other_actors:
                     own_actor_ids |= {actor.id for actor in self.manager.other_actors if actor is not None}
                 for sensor in self.world.get_actors().filter('*sensor*'):
@@ -228,7 +233,7 @@ class ScenarioRunner(object):
                     sensor.destroy()
             except RuntimeError:
                 pass
-        self.preexisting_sensor_ids = set()
+        self.preexisting_sensor_ids = None
 
         if self.manager:
             self.manager.cleanup()
