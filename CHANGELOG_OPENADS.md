@@ -47,6 +47,7 @@ Based on ScenarioRunner v1.0 for CARLA 1.0.0 (Unreal Engine 5.8), including the 
 - Fixed autopilot class naming to use `carla_autopilot`.
 - Updated `perception_interfaces` and `planning_interfaces` to v1.2.0.
 - Updated the openadservice Helm chart dependency to 1.2.0.
+- Added the daily `ghcr-cleanup` workflow of `openads-dev-environment`, which also cleans the `ros` image.
 
 ## Visualization and defaults
 
