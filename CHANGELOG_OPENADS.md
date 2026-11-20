@@ -31,6 +31,7 @@
 - Updated vehicle defaults for UE5.
 - Updated `perception_interfaces` and `planning_interfaces` to v1.2.0.
 - Updated the openadservice Helm chart dependency to 1.2.0.
+- Added the daily `ghcr-cleanup` workflow of `openads-dev-environment`, which also cleans the `ros` image.
 
 ## Visualization and defaults
 
