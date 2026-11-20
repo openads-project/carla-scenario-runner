@@ -5239,6 +5239,8 @@ class AddActor(AtomicBehavior):
         self._init_velocity = init_velocity
         self._actor_name = actor_name
         self._actor_category = actor_category
+        # OpenADS: the scenario destroys these with its other actors, see BasicScenario.remove_all_actors
+        self.spawned_actors = []
 
     def update(self):
         new_status = py_trees.common.Status.RUNNING
@@ -5250,6 +5252,7 @@ class AddActor(AtomicBehavior):
                 color=self._color,
                 actor_category=self._actor_category)
             if new_actor:
+                self.spawned_actors.append(new_actor)
                 self._actor = new_actor
                 self._actor.set_target_velocity(self._init_velocity)
                 self._ensure_default_actor_control(new_actor)

@@ -15,7 +15,7 @@ import carla
 
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (WaitForBlackboardVariable,
                                                                                InTimeToArrivalToLocation)
-from srunner.scenariomanager.scenarioatomics.atomic_behaviors import WaitForever
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import AddActor, WaitForever
 from srunner.scenariomanager.timer import TimeOut
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import UpdateAllActorControls
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import Criterion
@@ -353,6 +353,15 @@ class BasicScenario(object):
             return
         destroy_actors(self.other_actors)
         self.other_actors = []
+
+        # OpenADS: actors spawned while the scenario runs (AddEntityAction) are not part of
+        # other_actors. Left alive, a later scenario would resolve its entities to them by role name.
+        scenario_tree = getattr(self, 'scenario_tree', None)
+        if scenario_tree is not None:
+            for node in scenario_tree.iterate():
+                if isinstance(node, AddActor):
+                    destroy_actors(node.spawned_actors)
+                    node.spawned_actors = []
 
     def get_parking_slots(self):
         """

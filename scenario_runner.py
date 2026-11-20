@@ -513,6 +513,12 @@ class ScenarioRunner(object):
             traceback.print_exc()
             print(e)
             result = False
+            # OpenADS: do not leave the actors to __del__, the behavior tree's parent links delay it
+            # until a garbage collection, when the next scenario may already resolve actors by name
+            try:
+                scenario.remove_all_actors()
+            except RuntimeError:
+                pass
 
         self._cleanup()
         return result
