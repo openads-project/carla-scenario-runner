@@ -23,8 +23,15 @@ trap cleanup EXIT
 
 # Download and install CARLA PythonAPI artifacts.
 mkdir -p "$CARLA_PATH"
-curl --location --output "$artifacts_dir/artifacts.tar.gz" "$CARLA_ARTIFACTS_URL"
-tar -xzf "$artifacts_dir/artifacts.tar.gz" -C "$artifacts_dir"
+curl --fail --location --output "$artifacts_dir/download" "$CARLA_ARTIFACTS_URL"
+# A release asset is PythonAPI.tar.gz itself; a GitHub Actions artifact
+# downloads as a zip around it.
+if [[ "$(head -c 2 "$artifacts_dir/download")" == "PK" ]]; then
+    unzip -q "$artifacts_dir/download" PythonAPI.tar.gz -d "$artifacts_dir"
+else
+    mv "$artifacts_dir/download" "$artifacts_dir/PythonAPI.tar.gz"
+fi
+tar -xzf "$artifacts_dir/PythonAPI.tar.gz" -C "$artifacts_dir"
 mv "$artifacts_dir/PythonAPI" "$CARLA_API_PATH"
 
 # Install PythonAPI requirements, keeping the version of the first occurrence.
