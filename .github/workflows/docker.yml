@@ -40,14 +40,14 @@ jobs:
       - name: Set image tag
         run: |
           echo "IMAGE_TAG_SUFFIX=_$(echo '${{ github.ref_name }}' | tr / -)_ci" >> $GITHUB_ENV
-        if: github.ref_name != github.event.repository.default_branch
+        if: github.ref_type != 'tag' && github.ref_name != github.event.repository.default_branch
       
       - uses: docker/build-push-action@v5
         name: Build and push
         with:
           push: true
           file: carla-scenario-runner/docker/Dockerfile
-          tags: ghcr.io/${{ github.repository }}:latest${{env.IMAGE_TAG_SUFFIX}}
+          tags: ghcr.io/${{ github.repository }}:${{ github.ref_type == 'tag' && github.ref_name || format('latest{0}', env.IMAGE_TAG_SUFFIX) }}
           no-cache: true
           context: carla-scenario-runner
           build-args: |
