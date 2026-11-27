@@ -25,6 +25,8 @@ jobs:
           target: dev,run
           base-image: rwthika/ros2:jazzy
           image-name: ghcr.io/${{ github.repository }}/ros
+          dev-image-name: ghcr.io/${{ github.repository }}/ros
+          slim-image-name: ghcr.io/${{ github.repository }}/ros
           rmw-implementation: rmw_zenoh_cpp
           command: bash -ic "ros2 launch carla_ros_scenario_runner carla_ros_scenario_runner.launch.py scenario_runner_path:=$SCENARIO_RUNNER_ROOT"
           enable-industrial-ci: false
